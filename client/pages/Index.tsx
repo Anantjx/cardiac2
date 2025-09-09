@@ -244,6 +244,18 @@ export default function Index() {
 
       // also add patient if not present
       await fetch('/api/patients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+
+      // Auto-confirm appointment for prototype
+      try {
+        const apptRes = await fetch('/api/appointments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ doctorId: assignJson.doctor.id, patientName: name, time: assignJson.slot }) });
+        const appt = await apptRes.json();
+        setAppointments((s) => [appt, ...s]);
+        const p = await fetch('/api/patients');
+        setPatients(await p.json());
+        alert('Assigned and appointment confirmed via QR');
+      } catch (e) {
+        console.error('Appointment confirm failed', e);
+      }
     } catch (e) {
       console.error(e);
       alert('Unable to assign from QR');
