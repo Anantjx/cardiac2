@@ -367,15 +367,37 @@ export default function Index() {
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
                   <p className="text-sm text-slate-500">Cholesterol Level</p>
-                  <p className="mt-1 text-xl font-bold text-slate-900">220 mg/dL</p>
+                  <p className="mt-1 text-xl font-bold text-slate-900">{reportDetails ? `${reportDetails.cholesterol} mg/dL` : '—'}</p>
                 </div>
                 <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
                   <p className="text-sm text-slate-500">ECG Summary</p>
-                  <p className="mt-1 text-xl font-bold text-slate-900">Mild ST Elevation</p>
+                  <p className="mt-1 text-xl font-bold text-slate-900">{reportDetails ? reportDetails.ecg : '—'}</p>
                 </div>
               </div>
 
               <p className="mt-3 text-sm text-slate-500">{reportFile ? (reportReady ? "This is a prototype preview based on your upload." : "Processing report...") : "Upload a report to see a preview here."}</p>
+
+              {/* QR generation & scan */}
+              <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <p className="text-sm text-slate-500">Generate Check-In QR</p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <button onClick={generateQrForPatient} className="inline-flex items-center gap-2 rounded-[12px] bg-primary px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110">Generate QR</button>
+                    {qrData && (
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`} alt="QR code" className="h-20 w-20 rounded-md bg-white p-1 shadow" />
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm text-slate-500">Scan QR / Paste code</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input value={qrInput} onChange={(e) => setQrInput(e.target.value)} placeholder="Paste QR payload here" className="w-full rounded-md border border-slate-200 px-3 py-2" />
+                    <button onClick={handleScanOrPaste} className="inline-flex items-center gap-2 rounded-[12px] bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow">Assign</button>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">Simulate scanning by pasting the QR payload or use the generated QR for demo.</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
