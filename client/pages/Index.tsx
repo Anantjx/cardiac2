@@ -85,10 +85,25 @@ export default function Index() {
 
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
   const [voiceActive, setVoiceActive] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
+  const voiceAbortRef = (window as any).__voiceAbortRef || { current: false };
+  // ensure ref persists across reloads in dev environment
+  if (!(window as any).__voiceAbortRef) (window as any).__voiceAbortRef = voiceAbortRef;
 
   function toggleAnswer(id: string, value: boolean) {
     setAnswers((s) => ({ ...s, [id]: value }));
+  }
+
+  function handleManualAnswer(id: string, value: boolean) {
+    // user chose manual mode; stop voice if active
+    setManualMode(true);
+    if (voiceActive) {
+      voiceAbortRef.current = true;
+      setVoiceActive(false);
+      setVoiceMessage('Manual input selected — stopping voice triage');
+    }
+    toggleAnswer(id, value);
   }
 
   function speak(text: string) {
@@ -104,7 +119,7 @@ export default function Index() {
     });
   }
 
-  function listenOnce(timeout = 7000) {
+  function listenOnce(timeout = 10000) {
     return new Promise<string | null>((resolve) => {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) return resolve(null);
@@ -132,9 +147,11 @@ export default function Index() {
       recog.onerror = (ev: any) => {
         finished = true;
         console.error('Recognition error', ev);
-        // If possible, prefer readable error
         const errMsg = ev && ev.error ? String(ev.error) : String(ev);
         setVoiceMessage(`Recognition error: ${errMsg}`);
+        try {
+          recog.stop();
+        } catch {}
         resolve(null);
       };
 
@@ -143,18 +160,31 @@ export default function Index() {
       };
 
       try {
+        // Reset abort flag
+        voiceAbortRef.current = false;
         recog.start();
       } catch (e) {
         console.error('Recognition start failed', e);
         resolve(null);
       }
 
-      // Timeout fallback
+      // Timeout fallback and abort handling
+      const timer = setInterval(() => {
+        if (voiceAbortRef.current) {
+          try {
+            recog.stop();
+          } catch {}
+          clearInterval(timer);
+          resolve(null);
+        }
+      }, 200);
+
       setTimeout(() => {
         if (!finished) {
           try {
             recog.stop();
           } catch {}
+          clearInterval(timer);
           resolve(null);
         }
       }, timeout);
@@ -162,6 +192,12 @@ export default function Index() {
   }
 
   async function startVoiceTriage() {
+    // If the user already used manual mode, advise them
+    if (manualMode) {
+      alert('You have used manual input already. Please clear answers to use voice triage.');
+      return;
+    }
+
     const questions = [
       { id: 'chest_pain', q: 'Are you feeling chest pain?' },
       { id: 'shortness_breath', q: 'Do you have shortness of breath?' },
@@ -178,51 +214,43 @@ export default function Index() {
 
     setVoiceActive(true);
     setVoiceMessage('Starting voice triage...');
+    voiceAbortRef.current = false;
 
     for (let i = 0; i < questions.length; i++) {
+      if (voiceAbortRef.current) break;
       const item = questions[i];
       setVoiceMessage(`Question ${i + 1} of ${questions.length}: ${item.q}`);
 
       await speak(item.q);
+      if (voiceAbortRef.current) break;
 
-      const transcript = await listenOnce(8000);
+      const transcript = await listenOnce(10000);
+      if (voiceAbortRef.current) break;
+
       if (!transcript) {
-        // ask once more
-        setVoiceMessage('Did not hear a response, repeating question...');
-        await speak('I did not hear you. Please say yes or no.');
-        const transcript2 = await listenOnce(6000);
-        if (!transcript2) {
-          setVoiceMessage('No response detected. Moving to next question.');
-          await speak('No response detected. Moving to the next question.');
-          continue;
-        } else {
-          const t = transcript2.toLowerCase();
-          const yes = /\b(yes|yeah|yep|yup|sure)\b/.test(t);
-          const no = /\b(no|not)\b/.test(t);
-          if (yes) toggleAnswer(item.id, true);
-          else if (no) toggleAnswer(item.id, false);
-          continue;
-        }
+        // do not repeat indefinitely; suggest manual answer
+        setVoiceMessage('Did not hear a clear response. Please tap Yes or No for this question.');
+        await speak('I did not hear a clear response. Please tap yes or no on the screen.');
+        continue;
       }
 
       const t = transcript.toLowerCase();
       const yes = /\b(yes|yeah|yep|yup|sure)\b/.test(t);
-      const no = /\b(no|not)\b/.test(t);
+      const no = /\b(no|not|nope)\b/.test(t);
       if (yes) toggleAnswer(item.id, true);
       else if (no) toggleAnswer(item.id, false);
       else {
-        // ambiguous
         setVoiceMessage('Could not interpret response. Please answer using the buttons.');
         await speak('I could not understand your answer. Please use the screen buttons to answer.');
       }
     }
 
-    setVoiceMessage('Voice triage complete');
+    setVoiceMessage('Voice triage finished');
     setVoiceActive(false);
     try {
-      await speak('Voice triage complete. You can submit your answers now.');
+      await speak('Voice triage finished. You can submit your answers now.');
     } catch {}
-    alert('Voice triage complete. You can submit now.');
+    alert('Voice triage finished. You can submit now.');
   }
 
   async function onSubmit(e: React.FormEvent) {
