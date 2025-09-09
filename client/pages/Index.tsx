@@ -139,10 +139,12 @@ export default function Index() {
       voiceAbortRef.current = true;
       setVoiceActive(false);
     }
-    setVoiceMessage('Listening... please say yes or no');
+    setVoiceMessage("Listening... please say yes or no");
     const transcript = await listenOnce(8000);
     if (!transcript) {
-      setVoiceMessage('No response detected. Try tapping the mic again or press Yes/No.');
+      setVoiceMessage(
+        "No response detected. Try tapping the mic again or press Yes/No.",
+      );
       return;
     }
     const t = transcript.toLowerCase();
@@ -150,7 +152,7 @@ export default function Index() {
     const no = /\b(no|not|nope)\b/.test(t);
     if (yes) handleManualAnswer(id, true);
     else if (no) handleManualAnswer(id, false);
-    else setVoiceMessage('Could not interpret. Use buttons.');
+    else setVoiceMessage("Could not interpret. Use buttons.");
   }
 
   function speak(text: string) {
@@ -727,7 +729,12 @@ export default function Index() {
                         aria-label={`Speak answer for ${item.q}`}
                         className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="h-4 w-4"
+                        >
                           <path d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3z" />
                           <path d="M19 11a1 1 0 10-2 0 5 5 0 01-10 0 1 1 0 10-2 0 7 7 0 006 6.92V21a1 1 0 102 0v-3.08A7 7 0 0019 11z" />
                         </svg>
