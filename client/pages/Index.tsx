@@ -328,10 +328,26 @@ export default function Index() {
 
   async function handleScanOrPaste() {
     if (!qrInput) return alert('Paste QR data or scan result into the field');
+
+    // Clean input: it might be a full URL, or direct payload
+    let payload = qrInput.trim();
+    try {
+      const u = new URL(payload);
+      // try to extract data param
+      const data = u.searchParams.get('data') || u.searchParams.get('d');
+      if (data) payload = decodeURIComponent(data);
+    } catch (e) {
+      // not a URL, proceed
+    }
+
     // Expect format patient:<name>:<ts>
-    const parts = qrInput.split(':');
-    if (parts[0] !== 'patient') return alert('Invalid QR payload');
+    const parts = payload.split(':');
+    if (parts.length < 2) return alert('Invalid QR payload');
+    const prefix = parts[0];
+    if (prefix !== 'patient' && prefix !== 'p') return alert('Invalid QR payload');
     const name = decodeURIComponent(parts[1] || '');
+
+    if (!name) return alert('Invalid patient in QR');
 
     // Use current triage risk if available, else low
     const risk = triage?.risk || 'Low';
@@ -351,6 +367,11 @@ export default function Index() {
         setAppointments((s) => [appt, ...s]);
         const p = await fetch('/api/patients');
         setPatients(await p.json());
+
+        // Refresh reports for patient
+        const r = await fetch(`/api/reports?patient=${encodeURIComponent(name)}`);
+        setReports(await r.json());
+
         alert('Assigned and appointment confirmed via QR');
       } catch (e) {
         console.error('Appointment confirm failed', e);
