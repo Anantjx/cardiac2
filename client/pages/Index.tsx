@@ -16,6 +16,7 @@ export default function Index() {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
+  const [assigned, setAssigned] = useState<{ doctor: any; slot: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function Index() {
     e.preventDefault();
     setLoading(true);
     setSubmitted(true);
+    setAssigned(null);
     try {
       // Call server-side assess endpoint (which uses OpenRouter if available)
       const res = await fetch("/api/assess", {
@@ -57,6 +59,15 @@ export default function Index() {
         await fetch("/api/patients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: patientName }) });
         const p = await fetch("/api/patients");
         setPatients(await p.json());
+      }
+
+      // Request assignment based on triage
+      try {
+        const assignRes = await fetch("/api/assign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ risk: data.risk || "Low", patientName }) });
+        const assignJson = await assignRes.json();
+        setAssigned(assignJson);
+      } catch (e) {
+        console.error("Assign failed", e);
       }
     } catch (err) {
       console.error(err);
