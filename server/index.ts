@@ -39,5 +39,12 @@ export function createServer() {
   app.post("/api/triage", handleTriage);
   app.get("/api/availability/stream", handleStream);
 
+  // Reports
+  app.post('/api/reports', handleCreateReport);
+  app.get('/api/reports', handleGetReports);
+
+  // Support
+  app.post('/api/support', handleSupportRequest);
+
   return app;
 }
