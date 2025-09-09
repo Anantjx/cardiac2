@@ -474,6 +474,9 @@ export default function Index() {
 
               <button type="button" onClick={() => startVoiceTriage()} className="inline-flex items-center gap-2 rounded-[20px] bg-white px-5 py-3 text-lg font-semibold text-slate-900 shadow ring-1 ring-slate-200 hover:bg-slate-50">Voice Triage</button>
             </div>
+            {voiceMessage && (
+              <p className="mt-2 text-sm text-slate-600">{voiceMessage}</p>
+            )}
           </form>
 
           {triage && (
