@@ -374,9 +374,22 @@ export default function Index() {
       {/* Help / Footer CTA */}
       <section id="help" className="container pb-16 md:pb-24">
         <div className="mx-auto max-w-4xl rounded-[15px] bg-emerald-50 p-8 ring-1 ring-emerald-100">
-          <h3 className="text-xl md:text-2xl font-extrabold text-emerald-900">Need assistance?</h3>
-          <p className="mt-2 text-emerald-800">Our support is here to help you with accessibility needs and questions.</p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="md:flex md:items-start md:justify-between">
+            <div>
+              <h3 className="text-xl md:text-2xl font-extrabold text-emerald-900">Need assistance?</h3>
+              <p className="mt-2 text-emerald-800">Our support is here to help you with accessibility needs and questions.</p>
+            </div>
+            <div className="mt-4 md:mt-0">
+              <p className="text-sm text-emerald-700 font-semibold">Demo Credentials (prototype)</p>
+              <div className="mt-2 rounded-md bg-white p-3 shadow ring-1 ring-emerald-100">
+                <p className="text-sm"><span className="font-semibold">Email:</span> demo@smartcare.test</p>
+                <p className="text-sm"><span className="font-semibold">Password:</span> demo1234</p>
+                <p className="mt-2 text-xs text-emerald-700">Use these credentials to explore prototype admin features. Do not use in production.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
             <a href="#contact" className="inline-flex items-center rounded-[20px] bg-primary px-5 py-3 text-base font-semibold text-white shadow hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70">Contact Support</a>
             <a href="#privacy" className="inline-flex items-center rounded-[20px] bg-white px-5 py-3 text-base font-semibold text-slate-900 shadow ring-1 ring-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70">Privacy Info</a>
           </div>
