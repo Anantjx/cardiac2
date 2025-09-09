@@ -581,14 +581,6 @@ export default function Index() {
               <h3 className="text-xl md:text-2xl font-extrabold text-emerald-900">Need assistance?</h3>
               <p className="mt-2 text-emerald-800">Our support is here to help you with accessibility needs and questions.</p>
             </div>
-            <div className="mt-4 md:mt-0">
-              <p className="text-sm text-emerald-700 font-semibold">Demo Credentials (prototype)</p>
-              <div className="mt-2 rounded-md bg-white p-3 shadow ring-1 ring-emerald-100">
-                <p className="text-sm"><span className="font-semibold">Email:</span> demo@smartcare.test</p>
-                <p className="text-sm"><span className="font-semibold">Password:</span> demo1234</p>
-                <p className="mt-2 text-xs text-emerald-700">Use these credentials to explore prototype admin features. Do not use in production.</p>
-              </div>
-            </div>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
