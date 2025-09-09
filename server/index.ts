@@ -2,6 +2,10 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
+import { handleAssess } from "./routes/assess";
+import { handleGetDoctors } from "./routes/doctors";
+import { handleGetAppointments, handleCreateAppointment } from "./routes/appointments";
+import { handleGetPatients, handleCreatePatient } from "./routes/patients";
 
 export function createServer() {
   const app = express();
@@ -20,11 +24,6 @@ export function createServer() {
   app.get("/api/demo", handleDemo);
 
   // New prototype endpoints
-  const { handleAssess } = await import("./routes/assess");
-  const { handleGetDoctors } = await import("./routes/doctors");
-  const { handleGetAppointments, handleCreateAppointment } = await import("./routes/appointments");
-  const { handleGetPatients, handleCreatePatient } = await import("./routes/patients");
-
   app.post("/api/assess", handleAssess);
   app.get("/api/doctors", handleGetDoctors);
   app.get("/api/appointments", handleGetAppointments);
