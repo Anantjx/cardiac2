@@ -586,6 +586,24 @@ export default function Index() {
 
               <p className="mt-3 text-sm text-slate-500">{reportFile ? (reportReady ? "This is a prototype preview based on your upload." : "Processing report...") : "Upload a report to see a preview here."}</p>
 
+              {reports.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm text-slate-500">Previous Reports for {patientName || 'anonymous'}</p>
+                  <ul className="mt-2 space-y-2">
+                    {reports.map((r: any) => (
+                      <li key={r.id} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
+                        <div>
+                          <p className="font-semibold text-slate-800">{r.fileName}</p>
+                          <p className="text-sm text-slate-600">{r.cholesterol} mg/dL • {r.ecg}</p>
+                          <p className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleString()}</p>
+                        </div>
+                        <div className="text-sm text-slate-500">{r.id}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* QR generation & scan */}
               <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
