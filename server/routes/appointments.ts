@@ -10,6 +10,8 @@ type Appointment = {
 
 const appointments: Appointment[] = [];
 
+import { broadcast } from "../lib/broadcaster";
+
 export const handleGetAppointments: RequestHandler = (_req, res) => {
   res.json(appointments);
 };
@@ -26,5 +28,11 @@ export const handleCreateAppointment: RequestHandler = (req, res) => {
     confirmedAt: new Date().toISOString(),
   };
   appointments.push(appt);
+
+  // Broadcast updated appointments
+  try {
+    broadcast("appointments", appointments);
+  } catch (e) {}
+
   res.json(appt);
 };
