@@ -1,6 +1,6 @@
 import { RequestHandler } from "express";
 
-const doctors = [
+export const doctors = [
   {
     id: "doc-1",
     name: "Dr. Ayesha Kapoor",
