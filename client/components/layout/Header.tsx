@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { HeartPulse, Menu, X } from "lucide-react";
 
 const nav = [
