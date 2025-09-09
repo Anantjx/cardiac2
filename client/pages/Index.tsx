@@ -223,6 +223,26 @@ export default function Index() {
                 {riskBadge}
               </div>
               <p className="mt-4 text-slate-600">{triage.summary}</p>
+
+              {/* Assigned doctor suggestion */}
+              {assigned ? (
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                  <div className="flex items-center gap-4">
+                    <img src={assigned.doctor.photo} alt={assigned.doctor.name} className="h-12 w-12 rounded-full" />
+                    <div>
+                      <p className="text-sm text-slate-500">Suggested</p>
+                      <p className="font-semibold text-slate-800">{assigned.doctor.name}</p>
+                      <p className="text-sm text-slate-500">{assigned.doctor.specialty}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-3">
+                    <p className="text-sm text-slate-600">Suggested slot: <span className="font-semibold text-slate-800">{new Date(assigned.slot).toLocaleString()}</span></p>
+                    <button onClick={() => confirmAppointment(assigned.doctor.id, assigned.slot)} className="ml-2 inline-flex items-center gap-2 rounded-[20px] bg-primary px-4 py-2 text-sm font-semibold text-white shadow hover:brightness-110">Assign & Confirm</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-6 text-sm text-slate-500">Assigning doctor based on triage...</div>
+              )}
             </div>
           )}
         </div>
