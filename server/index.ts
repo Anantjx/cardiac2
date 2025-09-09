@@ -4,13 +4,11 @@ import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import { handleAssess } from "./routes/assess";
 import { handleGetDoctors } from "./routes/doctors";
-import {
-  handleGetAppointments,
-  handleCreateAppointment,
-} from "./routes/appointments";
+import { handleGetAppointments, handleCreateAppointment } from "./routes/appointments";
 import { handleGetPatients, handleCreatePatient } from "./routes/patients";
 import { handleAssign } from "./routes/assign";
 import { handleStream } from "./routes/stream";
+import { handleTriage } from "./routes/triage";
 
 export function createServer() {
   const app = express();
