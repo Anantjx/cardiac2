@@ -513,8 +513,22 @@ export default function Index() {
                       <p className="text-sm font-medium text-slate-800">{item.q}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => toggleAnswer(item.id, true)} className="inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm font-semibold bg-emerald-50 text-emerald-800">Yes</button>
-                      <button type="button" onClick={() => toggleAnswer(item.id, false)} className="inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm font-semibold bg-white text-slate-800">No</button>
+                      <button
+                        type="button"
+                        onClick={() => handleManualAnswer(item.id, true)}
+                        aria-pressed={!!answers[item.id]}
+                        className={`inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm font-semibold ${answers[item.id] === true ? 'bg-primary text-white' : 'bg-emerald-50 text-emerald-800'}`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleManualAnswer(item.id, false)}
+                        aria-pressed={answers[item.id] === false}
+                        className={`inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm font-semibold ${answers[item.id] === false ? 'bg-danger text-white' : 'bg-white text-slate-800'}`}
+                      >
+                        No
+                      </button>
                     </div>
                   </div>
                 ))}
