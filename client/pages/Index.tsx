@@ -328,6 +328,7 @@ export default function Index() {
     setAssigned(null);
 
     try {
+      setAiAnalyzing(true);
       // Call server-side triage endpoint with answers
       const payload = {
         patientName,
@@ -369,6 +370,7 @@ export default function Index() {
       alert("Triage failed");
     } finally {
       setLoading(false);
+      setAiAnalyzing(false);
     }
   }
 
