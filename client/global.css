@@ -1,5 +1,5 @@
 /** @import must precede all other statements */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Open+Sans:wght@400;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -21,8 +21,19 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Brand and semantic colors (HSL) */
+    /* Primary: #4CAF50 */
+    --primary: 122.7 39% 49%;
+    --primary-foreground: 0 0% 100%;
+    /* Success mirrors primary */
+    --success: 122.7 39% 49%;
+    --success-foreground: 0 0% 100%;
+    /* Warning: #FF5722 */
+    --warning: 14 100% 57%;
+    --warning-foreground: 0 0% 100%;
+    /* Danger: #F44336 */
+    --danger: 4 90% 58%;
+    --danger-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -40,7 +51,8 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
 
-    --radius: 0.5rem;
+    /* Global corner radius: 15px for cards */
+    --radius: 15px;
 
     --sidebar-background: 0 0% 98%;
 
@@ -69,8 +81,14 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 122.7 39% 49%;
+    --primary-foreground: 0 0% 100%;
+    --success: 122.7 39% 49%;
+    --success-foreground: 0 0% 100%;
+    --warning: 14 100% 57%;
+    --warning-foreground: 0 0% 100%;
+    --danger: 4 90% 58%;
+    --danger-foreground: 0 0% 100%;
 
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
@@ -103,7 +121,12 @@
     @apply border-border;
   }
 
+  html { scroll-behavior: smooth; }
+
   body {
     @apply bg-background text-foreground;
+    font-family: "Roboto", "Open Sans", system-ui, -apple-system, Segoe UI, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    font-size: 16px;
+    line-height: 1.6;
   }
 }
