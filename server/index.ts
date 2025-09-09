@@ -7,6 +7,7 @@ import { handleGetDoctors } from "./routes/doctors";
 import { handleGetAppointments, handleCreateAppointment } from "./routes/appointments";
 import { handleGetPatients, handleCreatePatient } from "./routes/patients";
 import { handleAssign } from "./routes/assign";
+import { handleStream } from "./routes/stream";
 
 export function createServer() {
   const app = express();
