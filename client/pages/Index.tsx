@@ -1,86 +1,112 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, UploadCloud, Plus, CalendarClock, FileText, UserRound } from "lucide-react";
 
 type RiskLevel = "High" | "Medium" | "Low";
-
-function computeRisk(symptoms: string): RiskLevel {
-  const s = symptoms.toLowerCase();
-  const high = [
-    "chest pain",
-    "severe chest",
-    "tightness",
-    "shortness of breath",
-    "breathlessness",
-    "fainting",
-    "collapse",
-    "sweating",
-    "left arm",
-    "jaw pain",
-    "radiating",
-  ];
-  const medium = [
-    "dizziness",
-    "lightheaded",
-    "palpit",
-    "irregular",
-    "fatigue",
-    "nausea",
-    "weakness",
-  ];
-
-  const highHit = high.some((k) => s.includes(k)) || s.split(/\s+/).length > 40;
-  if (highHit) return "High";
-  const medHit = medium.some((k) => s.includes(k)) || s.split(/\s+/).length > 15;
-  if (medHit) return "Medium";
-  return "Low";
-}
 
 export default function Index() {
   const [patientName, setPatientName] = useState("");
   const [symptoms, setSymptoms] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const risk: RiskLevel | null = useMemo(() => (submitted ? computeRisk(symptoms) : null), [submitted, symptoms]);
+  const [triage, setTriage] = useState<{ risk: RiskLevel; summary: string } | null>(null);
 
   const [dragActive, setDragActive] = useState(false);
   const [reportFile, setReportFile] = useState<File | null>(null);
   const [reportReady, setReportReady] = useState(false);
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitted(true);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [patients, setPatients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  async function fetchAll() {
+    try {
+      const [dRes, aRes, pRes] = await Promise.all([
+        fetch("/api/doctors"),
+        fetch("/api/appointments"),
+        fetch("/api/patients"),
+      ]);
+      const [dJson, aJson, pJson] = await Promise.all([dRes.json(), aRes.json(), pRes.json()]);
+      setDoctors(dJson);
+      setAppointments(aJson);
+      setPatients(pJson);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
-  function handleFiles(files: FileList | null) {
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setSubmitted(true);
+    try {
+      // Call server-side assess endpoint (which uses OpenRouter if available)
+      const res = await fetch("/api/assess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientName, symptoms }),
+      });
+      const data = await res.json();
+      setTriage({ risk: data.risk || "Low", summary: data.summary || "" });
+
+      // Create patient record for prototype session
+      if (patientName) {
+        await fetch("/api/patients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: patientName }) });
+        const p = await fetch("/api/patients");
+        setPatients(await p.json());
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     const f = files[0];
     setReportFile(f);
-    // Mock processing delay
     setReportReady(false);
-    window.setTimeout(() => setReportReady(true), 400);
+    // mock processing
+    setTimeout(() => setReportReady(true), 600);
   }
 
-  function onDrop(e: React.DragEvent<HTMLLabelElement>) {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    handleFiles(e.dataTransfer.files);
+  async function confirmAppointment(doctorId: string, slot: string) {
+    if (!patientName) {
+      alert("Please enter patient name before confirming an appointment.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/appointments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ doctorId, patientName, time: slot }) });
+      const appt = await res.json();
+      setAppointments((s) => [appt, ...s]);
+
+      // also ensure patient saved
+      await fetch("/api/patients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: patientName }) });
+      const p = await fetch("/api/patients");
+      setPatients(await p.json());
+
+      alert("Appointment confirmed");
+    } catch (err) {
+      console.error(err);
+      alert("Unable to confirm appointment");
+    }
   }
 
-  const riskBadge = risk ? (
-    <div className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold shadow-sm"
+  const riskBadge = triage ? (
+    <div
+      className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold shadow-sm"
       style={{
-        backgroundColor:
-          risk === "High" ? "hsl(var(--danger))" : risk === "Medium" ? "hsl(var(--warning))" : "hsl(var(--success))",
+        backgroundColor: triage.risk === "High" ? "hsl(var(--danger))" : triage.risk === "Medium" ? "hsl(var(--warning))" : "hsl(var(--success))",
         color: "hsl(var(--success-foreground))",
       }}
       aria-live="polite"
     >
-      {risk === "Low" ? (
-        <CheckCircle2 className="h-4 w-4" aria-hidden />
-      ) : (
-        <AlertTriangle className="h-4 w-4" aria-hidden />
-      )}
-      {risk} Risk
+      {triage.risk === "Low" ? <CheckCircle2 className="h-4 w-4" aria-hidden /> : <AlertTriangle className="h-4 w-4" aria-hidden />}
+      {triage.risk} Risk
     </div>
   ) : null;
 
@@ -89,34 +115,17 @@ export default function Index() {
       {/* Hero */}
       <section id="home" className="relative isolate overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-emerald-50 via-white to-sky-50" />
-        <div className="absolute -top-28 -right-28 -z-10 h-72 w-72 rounded-full bg-emerald-200/40 blur-3xl" />
-        <div className="absolute -bottom-28 -left-28 -z-10 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
         <div className="container mx-auto grid grid-cols-1 gap-8 py-16 md:py-24 lg:grid-cols-2">
           <div className="flex flex-col items-start justify-center">
-            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-slate-900">
-              Welcome to Smart Cardiac Care System
-            </h1>
-            <p className="mt-4 max-w-2xl text-lg md:text-xl text-slate-600">
-              Instant triaging, lab report analysis, and appointment scheduling powered by AI.
-            </p>
+            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-slate-900">Welcome to Smart Cardiac Care System</h1>
+            <p className="mt-4 max-w-2xl text-lg md:text-xl text-slate-600">Instant triaging, lab report analysis, and appointment scheduling powered by AI.</p>
             <div className="mt-8 flex flex-wrap gap-4">
-              <a
-                href="#check-in"
-                className="inline-flex items-center gap-2 rounded-[20px] bg-primary px-6 py-4 text-lg font-semibold text-white shadow-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 hover:brightness-110"
-              >
-                Start Patient Check-In Now
-              </a>
-              <a
-                href="#help"
-                className="inline-flex items-center gap-2 rounded-[20px] bg-white px-6 py-4 text-lg font-semibold text-slate-900 shadow-md ring-1 ring-slate-200 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-              >
-                Need Help?
-              </a>
+              <a href="#check-in" className="inline-flex items-center gap-2 rounded-[20px] bg-primary px-6 py-4 text-lg font-semibold text-white shadow-md transition hover:brightness-110">Start Patient Check-In Now</a>
+              <a href="#help" className="inline-flex items-center gap-2 rounded-[20px] bg-white px-6 py-4 text-lg font-semibold text-slate-900 shadow ring-1 ring-slate-200 transition hover:bg-slate-50">Need Help?</a>
             </div>
           </div>
           <div className="flex items-center justify-center">
             <div className="relative aspect-[4/3] w-full max-w-xl overflow-hidden rounded-[20px] bg-white shadow-xl ring-1 ring-slate-200">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.15),transparent_40%),radial-gradient(circle_at_80%_30%,rgba(14,165,233,0.18),transparent_45%)]" />
               <div className="relative z-10 p-6">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -186,26 +195,23 @@ export default function Index() {
               <button
                 type="submit"
                 className="inline-flex items-center rounded-[20px] bg-success px-6 py-4 text-lg font-semibold text-white shadow-md transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/70"
+                disabled={loading}
               >
-                Check-In
+                {loading ? "Assessing..." : "Check-In"}
               </button>
             </div>
           </form>
 
-          {submitted && (
+          {triage && (
             <div className="mt-6 rounded-[15px] bg-white p-6 shadow ring-1 ring-slate-200" role="status" aria-live="polite">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-slate-500">Triage Result</p>
-                  <p className="mt-1 text-xl font-extrabold text-slate-900">
-                    {patientName ? `${patientName.split(" ")[0]}, ` : ""}Your current risk level:
-                  </p>
+                  <p className="mt-1 text-xl font-extrabold text-slate-900">{patientName ? `${patientName.split(" ")[0]}, ` : ""}Your current risk level:</p>
                 </div>
                 {riskBadge}
               </div>
-              <p className="mt-4 text-slate-600">
-                This is a prototype assessment and does not replace professional medical evaluation.
-              </p>
+              <p className="mt-4 text-slate-600">{triage.summary}</p>
             </div>
           )}
         </div>
@@ -225,22 +231,18 @@ export default function Index() {
                 setDragActive(true);
               }}
               onDragLeave={() => setDragActive(false)}
-              onDrop={onDrop}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragActive(false);
+                handleFiles(e.dataTransfer.files);
+              }}
               className={`flex cursor-pointer flex-col items-center justify-center rounded-[15px] border-2 border-dashed p-8 text-center shadow-sm transition ${dragActive ? "border-primary bg-emerald-50" : "border-slate-300 bg-white"}`}
             >
               <UploadCloud className="h-10 w-10 text-slate-500" aria-hidden />
               <p className="mt-3 font-semibold text-slate-800">Drag & drop</p>
               <p className="text-slate-600">Upload PDF or Image Lab Report</p>
-              <input
-                id="uploader"
-                type="file"
-                accept=".pdf,image/*"
-                className="sr-only"
-                onChange={(e) => handleFiles(e.target.files)}
-              />
-              <span className="mt-4 inline-flex items-center gap-2 rounded-[20px] bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow ring-1 ring-slate-200 transition hover:bg-slate-50">
-                <Plus className="h-4 w-4" /> Choose file
-              </span>
+              <input id="uploader" type="file" accept=".pdf,image/*" className="sr-only" onChange={(e) => handleFiles(e.target.files)} />
+              <span className="mt-4 inline-flex items-center gap-2 rounded-[20px] bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow ring-1 ring-slate-200 transition hover:bg-slate-50"><Plus className="h-4 w-4" /> Choose file</span>
             </label>
 
             <div className="rounded-[15px] bg-white p-6 shadow ring-1 ring-slate-200">
@@ -263,13 +265,7 @@ export default function Index() {
                 </div>
               </div>
 
-              <p className="mt-3 text-sm text-slate-500">
-                {reportFile
-                  ? reportReady
-                    ? "This is a prototype preview based on your upload."
-                    : "Processing report..."
-                  : "Upload a report to see a preview here."}
-              </p>
+              <p className="mt-3 text-sm text-slate-500">{reportFile ? (reportReady ? "This is a prototype preview based on your upload." : "Processing report...") : "Upload a report to see a preview here."}</p>
             </div>
           </div>
         </div>
@@ -279,40 +275,67 @@ export default function Index() {
       <section id="appointments" className="container py-16 md:py-24">
         <div className="mx-auto max-w-4xl">
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">Appointment Scheduling</h2>
-          <p className="mt-2 text-slate-600">Quickly confirm your appointment.</p>
+          <p className="mt-2 text-slate-600">View available doctors and confirm an appointment in real time.</p>
 
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="rounded-[15px] bg-white p-6 shadow ring-1 ring-slate-200">
-              <div className="flex items-center gap-4">
-                <img
-                  src="https://i.pravatar.cc/100?img=12"
-                  alt="Doctor profile"
-                  className="h-16 w-16 rounded-full object-cover ring-2 ring-emerald-200"
-                />
-                <div>
-                  <p className="text-sm text-slate-500">Doctor</p>
-                  <p className="text-xl font-extrabold text-slate-900">Dr. Ayesha Kapoor</p>
-                </div>
+              <p className="text-lg font-semibold text-slate-800">Available Doctors</p>
+              <div className="mt-4 space-y-4">
+                {doctors.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <img src={doc.photo} alt={`Photo of ${doc.name}`} className="h-12 w-12 rounded-full" />
+                      <div>
+                        <p className="text-sm text-slate-500">{doc.specialty}</p>
+                        <p className="font-semibold text-slate-800">{doc.name}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      {doc.slots?.map((slot: string) => (
+                        <button key={slot} onClick={() => confirmAppointment(doc.id, slot)} className="ml-2 inline-flex items-center gap-2 rounded-[20px] bg-primary px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110">
+                          Confirm {new Date(slot).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="mt-6 flex items-center gap-3 text-slate-700">
-                <CalendarClock className="h-5 w-5 text-emerald-600" />
-                <p className="text-lg font-semibold">Today at 2:00 PM</p>
-              </div>
-              <button
-                className="mt-6 inline-flex w-full items-center justify-center rounded-[20px] bg-sky-600 px-6 py-4 text-lg font-semibold text-white shadow-md transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600/70"
-              >
-                Confirm Appointment
-              </button>
             </div>
 
             <div className="rounded-[15px] bg-white p-6 shadow ring-1 ring-slate-200">
-              <p className="text-lg font-semibold text-slate-800">Appointment Details</p>
-              <ul className="mt-4 space-y-3 text-slate-600">
-                <li><span className="font-semibold text-slate-800">Location:</span> Cardiac Care, Block B</li>
-                <li><span className="font-semibold text-slate-800">Visit Type:</span> In-person Consultation</li>
-                <li><span className="font-semibold text-slate-800">Preparation:</span> Bring previous reports</li>
+              <p className="text-lg font-semibold text-slate-800">Upcoming Appointments</p>
+              <ul className="mt-4 space-y-3">
+                {appointments.length === 0 && <li className="text-sm text-slate-500">No appointments yet</li>}
+                {appointments.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-800">{a.patientName}</p>
+                      <p className="text-sm text-slate-500">{new Date(a.time).toLocaleString()}</p>
+                    </div>
+                    <p className="text-sm text-slate-500">{a.doctorId}</p>
+                  </li>
+                ))}
               </ul>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Patients list */}
+      <section id="patients" className="container py-8">
+        <div className="mx-auto max-w-4xl">
+          <h3 className="text-xl font-semibold">Checked-in Patients</h3>
+          <div className="mt-4 grid grid-cols-1 gap-3">
+            {patients.length === 0 && <p className="text-sm text-slate-500">No patients checked in yet.</p>}
+            {patients.map((p) => (
+              <div key={p.id} className="flex items-center justify-between rounded-[12px] bg-white p-3 shadow ring-1 ring-slate-200">
+                <div>
+                  <p className="font-semibold text-slate-800">{p.name}</p>
+                  <p className="text-sm text-slate-500">Checked in {new Date(p.checkedInAt).toLocaleString()}</p>
+                </div>
+                <div className="text-sm text-slate-500">{p.id}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
