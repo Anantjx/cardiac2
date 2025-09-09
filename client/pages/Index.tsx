@@ -266,9 +266,20 @@ export default function Index() {
     const ecg = Math.random() > 0.7 ? "Mild ST Elevation" : "Normal Sinus Rhythm";
 
     // mock processing delay
-    setTimeout(() => {
+    setTimeout(async () => {
       setReportReady(true);
       setReportDetails({ cholesterol, ecg });
+
+      // Send report to server for patient history
+      try {
+        await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patientName: patientName || 'anonymous', fileName: name, cholesterol, ecg }) });
+        // refresh reports list for this patient
+        const r = await fetch(`/api/reports?patient=${encodeURIComponent(patientName || 'anonymous')}`);
+        const list = await r.json();
+        setReports(list);
+      } catch (e) {
+        console.error('Report save failed', e);
+      }
     }, 700);
   }
 
