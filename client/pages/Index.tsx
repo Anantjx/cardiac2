@@ -719,6 +719,17 @@ export default function Index() {
                       >
                         No
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => listenForQuestion(item.id)}
+                        aria-label={`Speak answer for ${item.q}`}
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                          <path d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3z" />
+                          <path d="M19 11a1 1 0 10-2 0 5 5 0 01-10 0 1 1 0 10-2 0 7 7 0 006 6.92V21a1 1 0 102 0v-3.08A7 7 0 0019 11z" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 ))}
