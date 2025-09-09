@@ -557,7 +557,11 @@ export default function Index() {
                 {loading ? "Assessing..." : "Check-In & Triage"}
               </button>
 
-              <button type="button" onClick={() => startVoiceTriage()} className="inline-flex items-center gap-2 rounded-[20px] bg-white px-5 py-3 text-lg font-semibold text-slate-900 shadow ring-1 ring-slate-200 hover:bg-slate-50">Voice Triage</button>
+              {!voiceActive ? (
+                <button type="button" onClick={() => { setManualMode(false); startVoiceTriage(); }} className="inline-flex items-center gap-2 rounded-[20px] bg-white px-5 py-3 text-lg font-semibold text-slate-900 shadow ring-1 ring-slate-200 hover:bg-slate-50">Voice Triage</button>
+              ) : (
+                <button type="button" onClick={() => { voiceAbortRef.current = true; setVoiceActive(false); setVoiceMessage('Voice triage stopped'); }} className="inline-flex items-center gap-2 rounded-[20px] bg-red-600 px-5 py-3 text-lg font-semibold text-white shadow ring-1 ring-red-700 hover:brightness-110">Stop Voice</button>
+              )}
             </div>
             {voiceMessage && (
               <p className="mt-2 text-sm text-slate-600">{voiceMessage}</p>
