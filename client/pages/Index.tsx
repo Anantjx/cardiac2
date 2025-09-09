@@ -21,6 +21,35 @@ export default function Index() {
 
   useEffect(() => {
     fetchAll();
+
+    // SSE for live updates
+    const es = new EventSource('/api/availability/stream');
+    es.addEventListener('appointments', (e: any) => {
+      try {
+        const data = JSON.parse(e.data);
+        setAppointments(data);
+      } catch {}
+    });
+    es.addEventListener('patients', (e: any) => {
+      try {
+        const data = JSON.parse(e.data);
+        setPatients(data);
+      } catch {}
+    });
+    es.addEventListener('doctors', (e: any) => {
+      try {
+        const data = JSON.parse(e.data);
+        setDoctors(data);
+      } catch {}
+    });
+    es.addEventListener('assign', (e: any) => {
+      try {
+        const data = JSON.parse(e.data);
+        setAssigned(data);
+      } catch {}
+    });
+
+    return () => es.close();
   }, []);
 
   async function fetchAll() {
