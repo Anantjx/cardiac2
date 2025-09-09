@@ -20,6 +20,8 @@ export default function Index() {
   const [assigned, setAssigned] = useState<{ doctor: any; slot: string; patientName?: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [reports, setReports] = useState<any[]>([]);
+
   const [qrData, setQrData] = useState<string | null>(null);
   const [qrInput, setQrInput] = useState("");
 
