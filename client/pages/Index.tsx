@@ -132,6 +132,27 @@ export default function Index() {
     toggleAnswer(id, value);
   }
 
+  async function listenForQuestion(id: string) {
+    // single-shot listen for a specific question to improve recognition
+    // if voice flow is active, abort it
+    if (voiceActive) {
+      voiceAbortRef.current = true;
+      setVoiceActive(false);
+    }
+    setVoiceMessage('Listening... please say yes or no');
+    const transcript = await listenOnce(8000);
+    if (!transcript) {
+      setVoiceMessage('No response detected. Try tapping the mic again or press Yes/No.');
+      return;
+    }
+    const t = transcript.toLowerCase();
+    const yes = /\b(yes|yeah|yep|yup|sure)\b/.test(t);
+    const no = /\b(no|not|nope)\b/.test(t);
+    if (yes) handleManualAnswer(id, true);
+    else if (no) handleManualAnswer(id, false);
+    else setVoiceMessage('Could not interpret. Use buttons.');
+  }
+
   function speak(text: string) {
     return new Promise<void>((resolve) => {
       try {
