@@ -111,6 +111,7 @@ export default function Index() {
   const [voiceActive, setVoiceActive] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const voiceAbortRef = (window as any).__voiceAbortRef || { current: false };
   // ensure ref persists across reloads in dev environment
   if (!(window as any).__voiceAbortRef)
