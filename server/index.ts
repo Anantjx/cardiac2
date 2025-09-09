@@ -19,5 +19,18 @@ export function createServer() {
 
   app.get("/api/demo", handleDemo);
 
+  // New prototype endpoints
+  const { handleAssess } = await import("./routes/assess");
+  const { handleGetDoctors } = await import("./routes/doctors");
+  const { handleGetAppointments, handleCreateAppointment } = await import("./routes/appointments");
+  const { handleGetPatients, handleCreatePatient } = await import("./routes/patients");
+
+  app.post("/api/assess", handleAssess);
+  app.get("/api/doctors", handleGetDoctors);
+  app.get("/api/appointments", handleGetAppointments);
+  app.post("/api/appointments", handleCreateAppointment);
+  app.get("/api/patients", handleGetPatients);
+  app.post("/api/patients", handleCreatePatient);
+
   return app;
 }
