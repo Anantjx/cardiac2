@@ -479,7 +479,13 @@ export default function Index() {
                   <div className="mt-2 flex items-center gap-3">
                     <button onClick={generateQrForPatient} className="inline-flex items-center gap-2 rounded-[12px] bg-primary px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110">Generate QR</button>
                     {qrData && (
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`} alt="QR code" className="h-20 w-20 rounded-md bg-white p-1 shadow" />
+                      <div className="flex items-center gap-3">
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`} alt="QR code" className="h-20 w-20 rounded-md bg-white p-1 shadow" />
+                        <div>
+                          <p className="text-sm text-slate-700">Patient:</p>
+                          <p className="font-semibold text-slate-900">{patientName}</p>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
