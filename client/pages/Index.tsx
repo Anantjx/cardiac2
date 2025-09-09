@@ -73,13 +73,84 @@ export default function Index() {
   }
 
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
 
   function toggleAnswer(id: string, value: boolean) {
     setAnswers((s) => ({ ...s, [id]: value }));
   }
 
+  function speak(text: string) {
+    return new Promise<void>((resolve) => {
+      try {
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.onend = () => resolve();
+        window.speechSynthesis.speak(utter);
+      } catch (e) {
+        console.error('Speech synth error', e);
+        resolve();
+      }
+    });
+  }
+
+  function listenOnce(timeout = 7000) {
+    return new Promise<string | null>((resolve) => {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) return resolve(null);
+
+      const recog = new SpeechRecognition();
+      recog.lang = 'en-US';
+      recog.interimResults = false;
+      recog.maxAlternatives = 1;
+
+      let finished = false;
+
+      recog.onresult = (ev: any) => {
+        finished = true;
+        try {
+          const t = ev.results[0][0].transcript;
+          resolve(t);
+        } catch (e) {
+          resolve(null);
+        }
+        try {
+          recog.stop();
+        } catch {}
+      };
+
+      recog.onerror = (ev: any) => {
+        finished = true;
+        console.error('Recognition error', ev);
+        // If possible, prefer readable error
+        const errMsg = ev && ev.error ? String(ev.error) : String(ev);
+        setVoiceMessage(`Recognition error: ${errMsg}`);
+        resolve(null);
+      };
+
+      recog.onend = () => {
+        if (!finished) resolve(null);
+      };
+
+      try {
+        recog.start();
+      } catch (e) {
+        console.error('Recognition start failed', e);
+        resolve(null);
+      }
+
+      // Timeout fallback
+      setTimeout(() => {
+        if (!finished) {
+          try {
+            recog.stop();
+          } catch {}
+          resolve(null);
+        }
+      }, timeout);
+    });
+  }
+
   async function startVoiceTriage() {
-    // Basic voice triage: read questions and try to listen for yes/no per question
     const questions = [
       { id: 'chest_pain', q: 'Are you feeling chest pain?' },
       { id: 'shortness_breath', q: 'Do you have shortness of breath?' },
@@ -89,52 +160,58 @@ export default function Index() {
       { id: 'fainting', q: 'Have you fainted or felt close to fainting?' },
     ];
 
-    if (!(window as any).speechSynthesis) return alert('Voice not supported in this browser');
-
-    // Try to use SpeechRecognition if available
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      // fallback: just read questions
-      for (const item of questions) {
-        const utter = new SpeechSynthesisUtterance(item.q);
-        window.speechSynthesis.speak(utter);
-      }
-      return alert('Voice reading started. Please answer using the on-screen buttons.');
+    if (!(window as any).speechSynthesis && !(window as any).SpeechRecognition && !(window as any).webkitSpeechRecognition) {
+      alert('Voice not supported in this browser. Use the on-screen buttons to answer.');
+      return;
     }
 
-    const recog = new SpeechRecognition();
-    recog.lang = 'en-US';
-    recog.interimResults = false;
-    recog.maxAlternatives = 1;
+    setVoiceActive(true);
+    setVoiceMessage('Starting voice triage...');
 
-    let i = 0;
+    for (let i = 0; i < questions.length; i++) {
+      const item = questions[i];
+      setVoiceMessage(`Question ${i + 1} of ${questions.length}: ${item.q}`);
 
-    recog.onresult = (ev: any) => {
-      const text = ev.results[0][0].transcript.toLowerCase();
-      const yes = /yes|yeah|yup|ya/.test(text);
-      const no = /no|not/.test(text);
-      if (yes) toggleAnswer(questions[i].id, true);
-      else if (no) toggleAnswer(questions[i].id, false);
-      i++;
-      if (i < questions.length) {
-        const utter = new SpeechSynthesisUtterance(questions[i].q);
-        window.speechSynthesis.speak(utter);
-        recog.start();
-      } else {
-        recog.stop();
-        alert('Voice triage complete. You can submit now.');
+      await speak(item.q);
+
+      const transcript = await listenOnce(8000);
+      if (!transcript) {
+        // ask once more
+        setVoiceMessage('Did not hear a response, repeating question...');
+        await speak('I did not hear you. Please say yes or no.');
+        const transcript2 = await listenOnce(6000);
+        if (!transcript2) {
+          setVoiceMessage('No response detected. Moving to next question.');
+          await speak('No response detected. Moving to the next question.');
+          continue;
+        } else {
+          const t = transcript2.toLowerCase();
+          const yes = /\b(yes|yeah|yep|yup|sure)\b/.test(t);
+          const no = /\b(no|not)\b/.test(t);
+          if (yes) toggleAnswer(item.id, true);
+          else if (no) toggleAnswer(item.id, false);
+          continue;
+        }
       }
-    };
 
-    recog.onerror = (e: any) => {
-      console.error('Recognition error', e);
-      alert('Voice recognition failed — please use buttons');
-    };
+      const t = transcript.toLowerCase();
+      const yes = /\b(yes|yeah|yep|yup|sure)\b/.test(t);
+      const no = /\b(no|not)\b/.test(t);
+      if (yes) toggleAnswer(item.id, true);
+      else if (no) toggleAnswer(item.id, false);
+      else {
+        // ambiguous
+        setVoiceMessage('Could not interpret response. Please answer using the buttons.');
+        await speak('I could not understand your answer. Please use the screen buttons to answer.');
+      }
+    }
 
-    // Start sequence
-    const first = new SpeechSynthesisUtterance(questions[0].q);
-    window.speechSynthesis.speak(first);
-    recog.start();
+    setVoiceMessage('Voice triage complete');
+    setVoiceActive(false);
+    try {
+      await speak('Voice triage complete. You can submit your answers now.');
+    } catch {}
+    alert('Voice triage complete. You can submit now.');
   }
 
   async function onSubmit(e: React.FormEvent) {
