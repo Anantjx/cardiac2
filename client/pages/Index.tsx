@@ -114,8 +114,21 @@ export default function Index() {
     const f = files[0];
     setReportFile(f);
     setReportReady(false);
-    // mock processing
-    setTimeout(() => setReportReady(true), 600);
+    setReportDetails(null);
+
+    // Derive a pseudorandom cholesterol value from filename + size
+    const name = f.name || "file";
+    let sum = 0;
+    for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
+    sum += f.size % 100;
+    const cholesterol = 180 + (sum % 120); // between 180 and 299
+    const ecg = Math.random() > 0.7 ? "Mild ST Elevation" : "Normal Sinus Rhythm";
+
+    // mock processing delay
+    setTimeout(() => {
+      setReportReady(true);
+      setReportDetails({ cholesterol, ecg });
+    }, 700);
   }
 
   async function confirmAppointment(doctorId: string, slot: string) {
