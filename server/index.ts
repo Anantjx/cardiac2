@@ -33,6 +33,7 @@ export function createServer() {
   app.get("/api/patients", handleGetPatients);
   app.post("/api/patients", handleCreatePatient);
   app.post("/api/assign", handleAssign);
+  app.get("/api/availability/stream", handleStream);
 
   return app;
 }
