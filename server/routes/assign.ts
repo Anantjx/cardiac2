@@ -13,7 +13,9 @@ export const handleAssign: RequestHandler = (req, res) => {
   const doc = doctors[docIndex] || doctors[0];
 
   // Choose earliest available slot and remove it from doctor's slots to simulate booking suggestion
-  const slot = (doc.slots && doc.slots.shift()) || new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+  const slot =
+    (doc.slots && doc.slots.shift()) ||
+    new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
   const payload = { doctor: doc, slot, patientName };
 

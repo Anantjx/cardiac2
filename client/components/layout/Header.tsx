@@ -15,7 +15,10 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="container flex h-16 items-center justify-between">
-        <a href="#home" className="inline-flex items-center gap-2 font-extrabold text-xl tracking-tight text-primary">
+        <a
+          href="#home"
+          className="inline-flex items-center gap-2 font-extrabold text-xl tracking-tight text-primary"
+        >
           <HeartPulse className="h-6 w-6 text-primary" aria-hidden />
           <span className="text-slate-900">Smart Cardiac Care</span>
         </a>
@@ -40,7 +43,11 @@ export default function Header() {
             onClick={() => setOpen((v) => !v)}
             className="inline-flex items-center justify-center rounded-md p-2 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            {open ? <X className="h-6 w-6" aria-hidden /> : <Menu className="h-6 w-6" aria-hidden />}
+            {open ? (
+              <X className="h-6 w-6" aria-hidden />
+            ) : (
+              <Menu className="h-6 w-6" aria-hidden />
+            )}
             <span className="sr-only">Toggle navigation</span>
           </button>
         </div>

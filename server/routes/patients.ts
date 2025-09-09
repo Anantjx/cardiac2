@@ -11,7 +11,11 @@ export const handleGetPatients: RequestHandler = (_req, res) => {
 export const handleCreatePatient: RequestHandler = (req, res) => {
   const { name } = req.body ?? {};
   if (!name) return res.status(400).json({ error: "Missing name" });
-  const p = { id: `pat-${Date.now()}`, name, checkedInAt: new Date().toISOString() };
+  const p = {
+    id: `pat-${Date.now()}`,
+    name,
+    checkedInAt: new Date().toISOString(),
+  };
   patients.unshift(p);
 
   try {

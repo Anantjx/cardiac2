@@ -19,7 +19,12 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 bg-white text-slate-900 px-3 py-2 rounded-md shadow">Skip to content</a>
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 bg-white text-slate-900 px-3 py-2 rounded-md shadow"
+        >
+          Skip to content
+        </a>
         <Header />
         <main id="main" className="pt-20">
           <Routes>

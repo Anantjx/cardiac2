@@ -13,7 +13,9 @@ export const handleStream: RequestHandler = (req, res) => {
   addClient(id, res);
 
   // Send initial ping
-  res.write(`event: connected\ndata: ${JSON.stringify({ clientId: id, clients: clientCount() })}\n\n`);
+  res.write(
+    `event: connected\ndata: ${JSON.stringify({ clientId: id, clients: clientCount() })}\n\n`,
+  );
 
   req.on("close", () => {
     removeClient(id);

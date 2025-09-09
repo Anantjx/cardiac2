@@ -18,7 +18,8 @@ export const handleGetAppointments: RequestHandler = (_req, res) => {
 
 export const handleCreateAppointment: RequestHandler = (req, res) => {
   const { doctorId, patientName, time } = req.body ?? {};
-  if (!doctorId || !patientName || !time) return res.status(400).json({ error: "Missing fields" });
+  if (!doctorId || !patientName || !time)
+    return res.status(400).json({ error: "Missing fields" });
 
   const appt: Appointment = {
     id: `appt-${Date.now()}`,

@@ -2,12 +2,31 @@ import { RequestHandler } from "express";
 
 const computeRiskLocal = (symptoms: string) => {
   const s = (symptoms || "").toLowerCase();
-  const high = ["chest pain", "shortness of breath", "faint", "collapse", "severe"];
+  const high = [
+    "chest pain",
+    "shortness of breath",
+    "faint",
+    "collapse",
+    "severe",
+  ];
   const medium = ["dizziness", "nausea", "palpitations", "fatigue"];
-  if (!s || s.trim().length === 0) return { risk: "Low", summary: "No symptoms provided." };
-  if (high.some((k) => s.includes(k))) return { risk: "High", summary: "Symptoms indicate high cardiac risk based on keywords." };
-  if (medium.some((k) => s.includes(k))) return { risk: "Medium", summary: "Symptoms indicate medium cardiac risk based on keywords." };
-  return { risk: "Low", summary: "Symptoms indicate low cardiac risk based on provided description." };
+  if (!s || s.trim().length === 0)
+    return { risk: "Low", summary: "No symptoms provided." };
+  if (high.some((k) => s.includes(k)))
+    return {
+      risk: "High",
+      summary: "Symptoms indicate high cardiac risk based on keywords.",
+    };
+  if (medium.some((k) => s.includes(k)))
+    return {
+      risk: "Medium",
+      summary: "Symptoms indicate medium cardiac risk based on keywords.",
+    };
+  return {
+    risk: "Low",
+    summary:
+      "Symptoms indicate low cardiac risk based on provided description.",
+  };
 };
 
 export const handleAssess: RequestHandler = async (req, res) => {
@@ -26,21 +45,30 @@ export const handleAssess: RequestHandler = async (req, res) => {
         symptoms,
       )}. Provide a brief JSON object with keys: risk (High|Medium|Low) and summary (one sentence). Respond ONLY with valid JSON.`;
 
-      const resp = await fetch("https://api.openrouter.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
+      const resp = await fetch(
+        "https://api.openrouter.ai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 300,
+          }),
         },
-        body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }], max_tokens: 300 }),
-      });
+      );
 
       const data = await resp.json().catch(() => null);
 
       // Try to extract assistant content
       const content =
-        data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || (typeof data === "string" ? data : null);
+        data?.choices?.[0]?.message?.content ||
+        data?.choices?.[0]?.text ||
+        (typeof data === "string" ? data : null);
 
       if (content) {
         // Try parsing JSON from content
@@ -48,7 +76,10 @@ export const handleAssess: RequestHandler = async (req, res) => {
         const contentJson = jsonMatch ? jsonMatch[0] : content;
         try {
           const parsed = JSON.parse(contentJson);
-          return res.json({ risk: parsed.risk ?? parsed.Risk ?? "Low", summary: parsed.summary ?? parsed.summary ?? content });
+          return res.json({
+            risk: parsed.risk ?? parsed.Risk ?? "Low",
+            summary: parsed.summary ?? parsed.summary ?? content,
+          });
         } catch (e) {
           // fallback to keyword detection
         }

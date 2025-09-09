@@ -121,11 +121,22 @@
     @apply border-border;
   }
 
-  html { scroll-behavior: smooth; }
+  html {
+    scroll-behavior: smooth;
+  }
 
   body {
     @apply bg-background text-foreground;
-    font-family: "Roboto", "Open Sans", system-ui, -apple-system, Segoe UI, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    font-family:
+      "Roboto",
+      "Open Sans",
+      system-ui,
+      -apple-system,
+      Segoe UI,
+      Helvetica,
+      Arial,
+      "Apple Color Emoji",
+      "Segoe UI Emoji";
     font-size: 16px;
     line-height: 1.6;
   }
