@@ -153,6 +153,39 @@ export default function Index() {
     }
   }
 
+  function generateQrForPatient() {
+    if (!patientName) {
+      alert('Enter patient name to generate QR');
+      return;
+    }
+    // Create a simple payload with patient name and timestamp
+    const payload = `patient:${encodeURIComponent(patientName)}:${Date.now()}`;
+    setQrData(payload);
+  }
+
+  async function handleScanOrPaste() {
+    if (!qrInput) return alert('Paste QR data or scan result into the field');
+    // Expect format patient:<name>:<ts>
+    const parts = qrInput.split(':');
+    if (parts[0] !== 'patient') return alert('Invalid QR payload');
+    const name = decodeURIComponent(parts[1] || '');
+
+    // Use current triage risk if available, else low
+    const risk = triage?.risk || 'Low';
+
+    try {
+      const assignRes = await fetch('/api/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ risk, patientName: name }) });
+      const assignJson = await assignRes.json();
+      setAssigned(assignJson);
+
+      // also add patient if not present
+      await fetch('/api/patients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    } catch (e) {
+      console.error(e);
+      alert('Unable to assign from QR');
+    }
+  }
+
   const riskBadge = triage ? (
     <div
       className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold shadow-sm"
