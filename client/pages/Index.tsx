@@ -72,38 +72,102 @@ export default function Index() {
     }
   }
 
+  const [answers, setAnswers] = useState<Record<string, boolean>>({});
+
+  function toggleAnswer(id: string, value: boolean) {
+    setAnswers((s) => ({ ...s, [id]: value }));
+  }
+
+  async function startVoiceTriage() {
+    // Basic voice triage: read questions and try to listen for yes/no per question
+    const questions = [
+      { id: 'chest_pain', q: 'Are you feeling chest pain?' },
+      { id: 'shortness_breath', q: 'Do you have shortness of breath?' },
+      { id: 'dizziness', q: 'Are you feeling dizzy or lightheaded?' },
+      { id: 'palpitations', q: 'Are you experiencing palpitations or irregular heartbeat?' },
+      { id: 'nausea', q: 'Do you have nausea or vomiting?' },
+      { id: 'fainting', q: 'Have you fainted or felt close to fainting?' },
+    ];
+
+    if (!(window as any).speechSynthesis) return alert('Voice not supported in this browser');
+
+    // Try to use SpeechRecognition if available
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      // fallback: just read questions
+      for (const item of questions) {
+        const utter = new SpeechSynthesisUtterance(item.q);
+        window.speechSynthesis.speak(utter);
+      }
+      return alert('Voice reading started. Please answer using the on-screen buttons.');
+    }
+
+    const recog = new SpeechRecognition();
+    recog.lang = 'en-US';
+    recog.interimResults = false;
+    recog.maxAlternatives = 1;
+
+    let i = 0;
+
+    recog.onresult = (ev: any) => {
+      const text = ev.results[0][0].transcript.toLowerCase();
+      const yes = /yes|yeah|yup|ya/.test(text);
+      const no = /no|not/.test(text);
+      if (yes) toggleAnswer(questions[i].id, true);
+      else if (no) toggleAnswer(questions[i].id, false);
+      i++;
+      if (i < questions.length) {
+        const utter = new SpeechSynthesisUtterance(questions[i].q);
+        window.speechSynthesis.speak(utter);
+        recog.start();
+      } else {
+        recog.stop();
+        alert('Voice triage complete. You can submit now.');
+      }
+    };
+
+    recog.onerror = (e: any) => {
+      console.error('Recognition error', e);
+      alert('Voice recognition failed — please use buttons');
+    };
+
+    // Start sequence
+    const first = new SpeechSynthesisUtterance(questions[0].q);
+    window.speechSynthesis.speak(first);
+    recog.start();
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setSubmitted(true);
     setAssigned(null);
-    try {
-      // Call server-side assess endpoint (which uses OpenRouter if available)
-      const res = await fetch("/api/assess", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientName, symptoms }),
-      });
-      const data = await res.json();
-      setTriage({ risk: data.risk || "Low", summary: data.summary || "" });
 
-      // Create patient record for prototype session
+    try {
+      // Call server-side triage endpoint with answers
+      const payload = {
+        patientName,
+        answers: Object.keys(answers).map((k) => ({ id: k, question: k, value: answers[k] })),
+        freeText: symptoms,
+      };
+
+      const res = await fetch('/api/triage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      setTriage({ risk: data.risk || 'Low', summary: data.summary || '' });
+
+      // Set lab details from triage response
+      if (data.lab) setReportDetails({ cholesterol: data.lab.cholesterol, ecg: data.lab.ecg });
+
+      // Create patient
       if (patientName) {
-        await fetch("/api/patients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: patientName }) });
-        const p = await fetch("/api/patients");
+        await fetch('/api/patients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: patientName }) });
+        const p = await fetch('/api/patients');
         setPatients(await p.json());
       }
 
-      // Request assignment based on triage
-      try {
-        const assignRes = await fetch("/api/assign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ risk: data.risk || "Low", patientName }) });
-        const assignJson = await assignRes.json();
-        setAssigned(assignJson);
-      } catch (e) {
-        console.error("Assign failed", e);
-      }
     } catch (err) {
       console.error(err);
+      alert('Triage failed');
     } finally {
       setLoading(false);
     }
