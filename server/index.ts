@@ -31,6 +31,7 @@ export function createServer() {
   app.post("/api/appointments", handleCreateAppointment);
   app.get("/api/patients", handleGetPatients);
   app.post("/api/patients", handleCreatePatient);
+  app.post("/api/assign", handleAssign);
 
   return app;
 }
