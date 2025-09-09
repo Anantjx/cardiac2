@@ -7,7 +7,13 @@ export const handleTriage: RequestHandler = (req, res) => {
   (answers || []).forEach((a: any) => (map[a.id] = !!a.value));
 
   // Critical questions mapping
-  const critical = ["chest_pain", "shortness_breath", "fainting", "sweating", "left_arm_pain"];
+  const critical = [
+    "chest_pain",
+    "shortness_breath",
+    "fainting",
+    "sweating",
+    "left_arm_pain",
+  ];
   const medium = ["dizziness", "palpitations", "nausea", "fatigue"];
 
   let risk: "High" | "Medium" | "Low" = "Low";
@@ -25,10 +31,16 @@ export const handleTriage: RequestHandler = (req, res) => {
   // mock lab suggestions based on risk
   let lab: { cholesterol: number; ecg: string };
   if (risk === "High") lab = { cholesterol: 265, ecg: "Mild ST Elevation" };
-  else if (risk === "Medium") lab = { cholesterol: 230, ecg: "Borderline ECG changes" };
+  else if (risk === "Medium")
+    lab = { cholesterol: 230, ecg: "Borderline ECG changes" };
   else lab = { cholesterol: 185, ecg: "Normal Sinus Rhythm" };
 
-  const summary = risk === "High" ? "Symptoms suggest high cardiac risk. Seek immediate attention." : risk === "Medium" ? "Symptoms indicate moderate risk. Recommend clinical follow-up." : "Low risk based on provided answers.";
+  const summary =
+    risk === "High"
+      ? "Symptoms suggest high cardiac risk. Seek immediate attention."
+      : risk === "Medium"
+        ? "Symptoms indicate moderate risk. Recommend clinical follow-up."
+        : "Low risk based on provided answers.";
 
   res.json({ risk, summary, lab, patientName: patientName || null });
 };
