@@ -69,6 +69,15 @@ export default function Index() {
       setDoctors(dJson);
       setAppointments(aJson);
       setPatients(pJson);
+
+      // fetch reports for current patient if any
+      try {
+        const rRes = await fetch(`/api/reports?patient=${encodeURIComponent(patientName || 'anonymous')}`);
+        const rJson = await rRes.json();
+        setReports(rJson);
+      } catch (e) {
+        // ignore
+      }
     } catch (err) {
       console.error(err);
     }
