@@ -12,12 +12,16 @@ export default function Index() {
   const [dragActive, setDragActive] = useState(false);
   const [reportFile, setReportFile] = useState<File | null>(null);
   const [reportReady, setReportReady] = useState(false);
+  const [reportDetails, setReportDetails] = useState<{ cholesterol?: number; ecg?: string } | null>(null);
 
   const [doctors, setDoctors] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
-  const [assigned, setAssigned] = useState<{ doctor: any; slot: string } | null>(null);
+  const [assigned, setAssigned] = useState<{ doctor: any; slot: string; patientName?: string } | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [qrData, setQrData] = useState<string | null>(null);
+  const [qrInput, setQrInput] = useState("");
 
   useEffect(() => {
     fetchAll();
