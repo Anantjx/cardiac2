@@ -178,12 +178,37 @@ export default function Index() {
       const recog = new SpeechRecognition();
       recog.lang = "en-US";
       recog.interimResults = false;
-      recog.maxAlternatives = 1;
+      // Allow multiple alternatives to improve chance of capturing yes/no
+      recog.maxAlternatives = 3;
+      recog.continuous = false;
 
       let finished = false;
+      let timeoutId: any = null;
+      let pollTimer: any = null;
+
+      const cleanup = () => {
+        try {
+          recog.onresult = null;
+          recog.onerror = null;
+          recog.onend = null;
+          recog.onnomatch = null;
+        } catch (e) {
+          // ignore
+        }
+      };
+
+      const clearAll = () => {
+        try {
+          if (typeof timeoutId === "number") clearTimeout(timeoutId);
+        } catch {}
+        try {
+          if (typeof pollTimer === "number") clearInterval(pollTimer);
+        } catch {}
+      };
 
       recog.onresult = (ev: any) => {
         finished = true;
+        clearAll();
         try {
           const t = ev.results[0][0].transcript;
           resolve(t);
@@ -193,21 +218,49 @@ export default function Index() {
         try {
           recog.stop();
         } catch {}
+        cleanup();
+      };
+
+      recog.onnomatch = () => {
+        finished = true;
+        clearAll();
+        setVoiceMessage("No recognizable speech detected");
+        try {
+          recog.stop();
+        } catch {}
+        cleanup();
+        resolve(null);
       };
 
       recog.onerror = (ev: any) => {
         finished = true;
+        clearAll();
         console.error("Recognition error", ev);
-        const errMsg = ev && ev.error ? String(ev.error) : String(ev);
-        setVoiceMessage(`Recognition error: ${errMsg}`);
+        const code = ev && (ev.error || ev.code || ev.type) ? (ev.error || ev.code || ev.type) : null;
+        const msg = (ev && (ev.message || ev.error)) || code || "Unknown recognition error";
+
+        let friendly = "Recognition error";
+        if (code === "no-speech") friendly = "No speech detected. Please speak again more clearly.";
+        else if (code === "audio-capture") friendly = "Microphone not available. Check your device and permissions.";
+        else if (code === "not-allowed" || code === "permission-denied") friendly = "Microphone permission denied. Please allow microphone access in your browser.";
+        else if (code === "network") friendly = "Network error during speech recognition.";
+        else if (code === "service-not-allowed") friendly = "Speech service not allowed.";
+        else if (msg) friendly = String(msg);
+
+        setVoiceMessage(friendly);
         try {
           recog.stop();
         } catch {}
+        cleanup();
         resolve(null);
       };
 
       recog.onend = () => {
-        if (!finished) resolve(null);
+        if (!finished) {
+          clearAll();
+          cleanup();
+          resolve(null);
+        }
       };
 
       try {
@@ -216,26 +269,30 @@ export default function Index() {
         recog.start();
       } catch (e) {
         console.error("Recognition start failed", e);
+        cleanup();
         resolve(null);
       }
 
-      // Timeout fallback and abort handling
-      const timer = setInterval(() => {
+      // Poll for abort
+      pollTimer = window.setInterval(() => {
         if (voiceAbortRef.current) {
           try {
             recog.stop();
           } catch {}
-          clearInterval(timer);
+          clearAll();
+          cleanup();
           resolve(null);
         }
       }, 200);
 
-      setTimeout(() => {
+      // Timeout fallback
+      timeoutId = window.setTimeout(() => {
         if (!finished) {
           try {
             recog.stop();
           } catch {}
-          clearInterval(timer);
+          clearAll();
+          cleanup();
           resolve(null);
         }
       }, timeout);
