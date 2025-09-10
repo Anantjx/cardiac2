@@ -148,8 +148,8 @@ export default function Index() {
       return;
     }
     const t = transcript.toLowerCase();
-    const yes = /\b(yes|yeah|yep|yup|sure)\b/.test(t);
-    const no = /\b(no|not|nope)\b/.test(t);
+    const yes = /\b(yes|yeah|yep|yup|sure|ya|haan|ha)\b/.test(t);
+    const no = /\b(no|not|nope|nahi|nahin|na)\b/.test(t);
     if (yes) handleManualAnswer(id, true);
     else if (no) handleManualAnswer(id, false);
     else setVoiceMessage("Could not interpret. Use buttons.");
@@ -358,8 +358,8 @@ export default function Index() {
       }
 
       const t = transcript.toLowerCase();
-      const yes = /\b(yes|yeah|yep|yup|sure)\b/.test(t);
-      const no = /\b(no|not|nope)\b/.test(t);
+      const yes = /\b(yes|yeah|yep|yup|sure|ya|haan|ha)\b/.test(t);
+    const no = /\b(no|not|nope|nahi|nahin|na)\b/.test(t);
       if (yes) toggleAnswer(item.id, true);
       else if (no) toggleAnswer(item.id, false);
       else {
