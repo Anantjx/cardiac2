@@ -781,11 +781,19 @@ export default function Index() {
                         No
                       </button>
                       <button
-                        type="button"
-                        onClick={() => listenForQuestion(item.id)}
-                        aria-label={`Speak answer for ${item.q}`}
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
-                      >
+                      type="button"
+                      onClick={() => {
+                        if (manualMode) {
+                          setVoiceMessage('Voice disabled because manual answers have been used. Clear answers to re-enable voice.');
+                          return;
+                        }
+                        setManualMode(false);
+                        listenForQuestion(item.id);
+                      }}
+                      disabled={manualMode}
+                      aria-label={`Speak answer for ${item.q}`}
+                      className={`inline-flex items-center justify-center h-8 w-8 rounded-full ${manualMode ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                    >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
