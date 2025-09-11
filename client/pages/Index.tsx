@@ -11,7 +11,7 @@ import {
 
 type RiskLevel = "High" | "Medium" | "Low";
 
-import { jsPDF } from 'jspdf';
+import { jsPDF } from "jspdf";
 
 export default function Index() {
   const [patientName, setPatientName] = useState("");
@@ -240,15 +240,28 @@ export default function Index() {
         finished = true;
         clearAll();
         console.error("Recognition error", ev);
-        const code = ev && (ev.error || ev.code || ev.type) ? (ev.error || ev.code || ev.type) : null;
-        const msg = (ev && (ev.message || ev.error)) || code || "Unknown recognition error";
+        const code =
+          ev && (ev.error || ev.code || ev.type)
+            ? ev.error || ev.code || ev.type
+            : null;
+        const msg =
+          (ev && (ev.message || ev.error)) ||
+          code ||
+          "Unknown recognition error";
 
         let friendly = "Recognition error";
-        if (code === "no-speech") friendly = "No speech detected. Please speak again more clearly.";
-        else if (code === "audio-capture") friendly = "Microphone not available. Check your device and permissions.";
-        else if (code === "not-allowed" || code === "permission-denied") friendly = "Microphone permission denied. Please allow microphone access in your browser.";
-        else if (code === "network") friendly = "Network error during speech recognition.";
-        else if (code === "service-not-allowed") friendly = "Speech service not allowed.";
+        if (code === "no-speech")
+          friendly = "No speech detected. Please speak again more clearly.";
+        else if (code === "audio-capture")
+          friendly =
+            "Microphone not available. Check your device and permissions.";
+        else if (code === "not-allowed" || code === "permission-denied")
+          friendly =
+            "Microphone permission denied. Please allow microphone access in your browser.";
+        else if (code === "network")
+          friendly = "Network error during speech recognition.";
+        else if (code === "service-not-allowed")
+          friendly = "Speech service not allowed.";
         else if (msg) friendly = String(msg);
 
         setVoiceMessage(friendly);
@@ -363,7 +376,7 @@ export default function Index() {
 
       const t = transcript.toLowerCase();
       const yes = /\b(yes|yeah|yep|yup|sure|ya|haan|ha)\b/.test(t);
-    const no = /\b(no|not|nope|nahi|nahin|na)\b/.test(t);
+      const no = /\b(no|not|nope|nahi|nahin|na)\b/.test(t);
       if (yes) toggleAnswer(item.id, true);
       else if (no) toggleAnswer(item.id, false);
       else {
@@ -583,16 +596,22 @@ export default function Index() {
       }
       lines.push("");
       if (reportDetails) {
-        lines.push(`Lab - Cholesterol: ${reportDetails.cholesterol ?? "-"} mg/dL`);
+        lines.push(
+          `Lab - Cholesterol: ${reportDetails.cholesterol ?? "-"} mg/dL`,
+        );
         lines.push(`Lab - ECG: ${reportDetails.ecg ?? "-"}`);
       } else if (reportFile) {
-        lines.push(`Lab: Report uploaded (${reportFile.name}) - analysis pending`);
+        lines.push(
+          `Lab: Report uploaded (${reportFile.name}) - analysis pending`,
+        );
       } else {
         lines.push("Lab: No report uploaded");
       }
       lines.push("");
       if (assigned) {
-        lines.push(`Assigned Doctor: ${assigned.doctor.name} (${assigned.doctor.specialty})`);
+        lines.push(
+          `Assigned Doctor: ${assigned.doctor.name} (${assigned.doctor.specialty})`,
+        );
         lines.push(`Appointment: ${new Date(assigned.slot).toLocaleString()}`);
       } else {
         lines.push("Appointment: Not assigned");
@@ -877,19 +896,21 @@ export default function Index() {
                         No
                       </button>
                       <button
-                      type="button"
-                      onClick={() => {
-                        if (manualMode) {
-                          setVoiceMessage('Voice disabled because manual answers have been used. Clear answers to re-enable voice.');
-                          return;
-                        }
-                        setManualMode(false);
-                        listenForQuestion(item.id);
-                      }}
-                      disabled={manualMode}
-                      aria-label={`Speak answer for ${item.q}`}
-                      className={`inline-flex items-center justify-center h-8 w-8 rounded-full ${manualMode ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                    >
+                        type="button"
+                        onClick={() => {
+                          if (manualMode) {
+                            setVoiceMessage(
+                              "Voice disabled because manual answers have been used. Clear answers to re-enable voice.",
+                            );
+                            return;
+                          }
+                          setManualMode(false);
+                          listenForQuestion(item.id);
+                        }}
+                        disabled={manualMode}
+                        aria-label={`Speak answer for ${item.q}`}
+                        className={`inline-flex items-center justify-center h-8 w-8 rounded-full ${manualMode ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                      >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
@@ -968,9 +989,10 @@ export default function Index() {
                 <p className="mt-1">{statusMessage}</p>
                 <div className="mt-2 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
                   <div
-                    className={`h-2 bg-primary transition-all duration-500`
-                    }
-                    style={{ width: `${statusStage === 0 ? 0 : statusStage === 1 ? 33 : statusStage === 2 ? 66 : 100}%` }}
+                    className={`h-2 bg-primary transition-all duration-500`}
+                    style={{
+                      width: `${statusStage === 0 ? 0 : statusStage === 1 ? 33 : statusStage === 2 ? 66 : 100}%`,
+                    }}
                   />
                 </div>
               </div>
