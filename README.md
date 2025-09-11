@@ -61,7 +61,7 @@ The system is designed to scale easily:
 
 6. **Start the frontend (if applicable):**
    
-   npm run dev
+   pnpm run dev
 
 License
 
