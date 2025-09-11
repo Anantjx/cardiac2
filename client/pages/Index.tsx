@@ -947,6 +947,20 @@ export default function Index() {
             {voiceMessage && (
               <p className="mt-2 text-sm text-slate-600">{voiceMessage}</p>
             )}
+
+            {statusMessage && (
+              <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                <strong className="block text-sm font-medium">Status:</strong>
+                <p className="mt-1">{statusMessage}</p>
+                <div className="mt-2 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                  <div
+                    className={`h-2 bg-primary transition-all duration-500`
+                    }
+                    style={{ width: `${statusStage === 0 ? 0 : statusStage === 1 ? 33 : statusStage === 2 ? 66 : 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </form>
 
           {triage && (
