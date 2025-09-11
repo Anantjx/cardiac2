@@ -7,6 +7,8 @@ const nav = [
   { href: "#reports", label: "Lab Reports" },
   { href: "#appointments", label: "Appointments" },
   { href: "#help", label: "Help" },
+  { href: "#contact", label: "Contact" },
+  { href: "#privacy", label: "Privacy" },
 ];
 
 export default function Header() {
