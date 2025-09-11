@@ -476,6 +476,10 @@ export default function Index() {
     setReportReady(false);
     setReportDetails(null);
 
+    // Show analyzing status
+    setStatusStage(2);
+    setStatusMessage("Analyzing lab report...");
+
     // Derive a pseudorandom cholesterol value from filename + size
     const name = f.name || "file";
     let sum = 0;
@@ -489,6 +493,16 @@ export default function Index() {
     setTimeout(async () => {
       setReportReady(true);
       setReportDetails({ cholesterol, ecg });
+
+      // clear status if triage already finished
+      if (triage) {
+        setStatusMessage("Lab analysis complete");
+        setStatusStage(3);
+        setTimeout(() => setStatusMessage("Results ready"), 600);
+      } else {
+        setStatusMessage(null);
+        setStatusStage(0);
+      }
 
       // Send report to server for patient history
       try {
