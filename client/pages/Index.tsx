@@ -554,6 +554,52 @@ export default function Index() {
     setQrData(payload);
   }
 
+  function generatePdfReport() {
+    try {
+      const doc = new jsPDF();
+      const lines: string[] = [];
+      lines.push(`Patient: ${patientName || "Anonymous"}`);
+      lines.push(`Date: ${new Date().toLocaleString()}`);
+      lines.push("");
+      if (triage) {
+        lines.push(`Triage Risk: ${triage.risk}`);
+        lines.push(`Triage Summary: ${triage.summary}`);
+      } else {
+        lines.push("Triage: Not available");
+      }
+      lines.push("");
+      if (reportDetails) {
+        lines.push(`Lab - Cholesterol: ${reportDetails.cholesterol ?? "-"} mg/dL`);
+        lines.push(`Lab - ECG: ${reportDetails.ecg ?? "-"}`);
+      } else if (reportFile) {
+        lines.push(`Lab: Report uploaded (${reportFile.name}) - analysis pending`);
+      } else {
+        lines.push("Lab: No report uploaded");
+      }
+      lines.push("");
+      if (assigned) {
+        lines.push(`Assigned Doctor: ${assigned.doctor.name} (${assigned.doctor.specialty})`);
+        lines.push(`Appointment: ${new Date(assigned.slot).toLocaleString()}`);
+      } else {
+        lines.push("Appointment: Not assigned");
+      }
+
+      // Add lines to PDF with simple layout
+      let y = 20;
+      doc.setFontSize(12);
+      lines.forEach((ln) => {
+        doc.text(ln, 14, y);
+        y += 8;
+      });
+
+      const fname = `${(patientName || "patient").replace(/\s+/g, "_")}_report.pdf`;
+      doc.save(fname);
+    } catch (e) {
+      console.error("PDF generation failed", e);
+      alert("Could not generate PDF report in this browser.");
+    }
+  }
+
   async function handleScanOrPaste() {
     if (!qrInput) return alert("Paste QR data or scan result into the field");
 
