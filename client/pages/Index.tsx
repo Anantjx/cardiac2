@@ -240,29 +240,29 @@ export default function Index() {
         finished = true;
         clearAll();
         console.error("Recognition error", ev);
-        const code =
-          ev && (ev.error || ev.code || ev.type)
-            ? ev.error || ev.code || ev.type
-            : null;
-        const msg =
-          (ev && (ev.message || ev.error)) ||
-          code ||
-          "Unknown recognition error";
+
+        // Safely extract code/message from event-like objects
+        const code = ev && (ev.error || ev.code || ev.type || ev.name) ? (ev.error || ev.code || ev.type || ev.name) : null;
+        let detail: string | null = null;
+        if (ev && typeof ev === "string") detail = ev;
+        else if (ev && typeof ev.message === "string") detail = ev.message;
+        else if (ev && typeof ev.error === "string") detail = ev.error;
 
         let friendly = "Recognition error";
-        if (code === "no-speech")
-          friendly = "No speech detected. Please speak again more clearly.";
-        else if (code === "audio-capture")
-          friendly =
-            "Microphone not available. Check your device and permissions.";
-        else if (code === "not-allowed" || code === "permission-denied")
-          friendly =
-            "Microphone permission denied. Please allow microphone access in your browser.";
-        else if (code === "network")
-          friendly = "Network error during speech recognition.";
-        else if (code === "service-not-allowed")
-          friendly = "Speech service not allowed.";
-        else if (msg) friendly = String(msg);
+        if (code === "no-speech") friendly = "No speech detected. Please speak again more clearly.";
+        else if (code === "audio-capture") friendly = "Microphone not available. Check your device and permissions.";
+        else if (code === "not-allowed" || code === "permission-denied") friendly = "Microphone permission denied. Please allow microphone access in your browser.";
+        else if (code === "network") friendly = "Network error during speech recognition.";
+        else if (code === "service-not-allowed") friendly = "Speech service not allowed.";
+        else if (detail) friendly = detail;
+        else if (code) friendly = String(code);
+        else {
+          try {
+            friendly = JSON.stringify(ev);
+          } catch (e) {
+            friendly = String(ev);
+          }
+        }
 
         setVoiceMessage(friendly);
         try {
