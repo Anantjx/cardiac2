@@ -392,6 +392,8 @@ export default function Index() {
 
     try {
       setAiAnalyzing(true);
+      setStatusStage(1);
+      setStatusMessage("Processing triage...");
       // Call server-side triage endpoint with answers
       const payload = {
         patientName,
@@ -418,6 +420,32 @@ export default function Index() {
           ecg: data.lab.ecg,
         });
 
+      // If a report file was uploaded but processing not complete, wait and show analyzing
+      if (reportFile && !reportReady) {
+        setStatusStage(2);
+        setStatusMessage("Analyzing lab report...");
+        // wait up to 8s for reportReady
+        const waitForReport = (timeout = 8000) =>
+          new Promise<void>((resolve) => {
+            const start = Date.now();
+            const int = setInterval(() => {
+              if (reportReady) {
+                clearInterval(int);
+                resolve();
+              } else if (Date.now() - start > timeout) {
+                clearInterval(int);
+                resolve();
+              }
+            }, 300);
+          });
+        await waitForReport(8000);
+      }
+
+      // finalize
+      setStatusStage(3);
+      setStatusMessage("Finalizing results...");
+      await new Promise((r) => setTimeout(r, 700));
+
       // Create patient
       if (patientName) {
         await fetch("/api/patients", {
@@ -428,9 +456,13 @@ export default function Index() {
         const p = await fetch("/api/patients");
         setPatients(await p.json());
       }
+
+      setStatusMessage("Results ready");
     } catch (err) {
       console.error(err);
       alert("Triage failed");
+      setStatusMessage(null);
+      setStatusStage(0);
     } finally {
       setLoading(false);
       setAiAnalyzing(false);
