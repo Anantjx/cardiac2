@@ -1022,6 +1022,17 @@ export default function Index() {
                   Assigning doctor based on triage...
                 </div>
               )}
+
+              {(triage || reportReady) && (
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    onClick={generatePdfReport}
+                    className="inline-flex items-center gap-2 rounded-[12px] bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:brightness-110"
+                  >
+                    Download Report (PDF)
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
