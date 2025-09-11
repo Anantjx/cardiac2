@@ -11,6 +11,8 @@ import {
 
 type RiskLevel = "High" | "Medium" | "Low";
 
+import { jsPDF } from 'jspdf';
+
 export default function Index() {
   const [patientName, setPatientName] = useState("");
   const [symptoms, setSymptoms] = useState("");
@@ -27,6 +29,8 @@ export default function Index() {
     cholesterol?: number;
     ecg?: string;
   } | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusStage, setStatusStage] = useState<number>(0); // 0 none, 1 triage, 2 lab, 3 final
 
   const [doctors, setDoctors] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
