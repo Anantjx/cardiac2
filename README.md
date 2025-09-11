@@ -24,9 +24,7 @@ Our solution automates key parts of emergency cardiac care:
 ## 🚀 Tech Stack
 - Frontend: React, Tailwind CSS
 - Backend: Node.js, Express
-- Database: MongoDB Atlas (Cloud Database)
 - APIs: OpenAI API for AI functionality (Symptom Analysis, Document Extraction, Chatbot)
-- Deployment: Vercel (Frontend), Render (Backend)
 
 ---
 
@@ -54,12 +52,15 @@ The system is designed to scale easily:
    git clone https://github.com/ANDEV-afk/cardiac-care.git
    
 2. **Install dependencies:**
+   
    npm install
 
-3. **Set up environment variables in a .env file:**
+4. **Set up environment variables in a .env file:**
+   
    OPENAI_API_KEY=your_openai_api_key (optional for prototype)
 
-4. **Start the frontend (if applicable):**
+6. **Start the frontend (if applicable):**
+   
    npm run dev
 
 License
