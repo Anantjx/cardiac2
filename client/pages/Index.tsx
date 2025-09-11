@@ -242,18 +242,28 @@ export default function Index() {
         console.error("Recognition error", ev);
 
         // Safely extract code/message from event-like objects
-        const code = ev && (ev.error || ev.code || ev.type || ev.name) ? (ev.error || ev.code || ev.type || ev.name) : null;
+        const code =
+          ev && (ev.error || ev.code || ev.type || ev.name)
+            ? ev.error || ev.code || ev.type || ev.name
+            : null;
         let detail: string | null = null;
         if (ev && typeof ev === "string") detail = ev;
         else if (ev && typeof ev.message === "string") detail = ev.message;
         else if (ev && typeof ev.error === "string") detail = ev.error;
 
         let friendly = "Recognition error";
-        if (code === "no-speech") friendly = "No speech detected. Please speak again more clearly.";
-        else if (code === "audio-capture") friendly = "Microphone not available. Check your device and permissions.";
-        else if (code === "not-allowed" || code === "permission-denied") friendly = "Microphone permission denied. Please allow microphone access in your browser.";
-        else if (code === "network") friendly = "Network error during speech recognition.";
-        else if (code === "service-not-allowed") friendly = "Speech service not allowed.";
+        if (code === "no-speech")
+          friendly = "No speech detected. Please speak again more clearly.";
+        else if (code === "audio-capture")
+          friendly =
+            "Microphone not available. Check your device and permissions.";
+        else if (code === "not-allowed" || code === "permission-denied")
+          friendly =
+            "Microphone permission denied. Please allow microphone access in your browser.";
+        else if (code === "network")
+          friendly = "Network error during speech recognition.";
+        else if (code === "service-not-allowed")
+          friendly = "Speech service not allowed.";
         else if (detail) friendly = detail;
         else if (code) friendly = String(code);
         else {
@@ -1383,48 +1393,89 @@ export default function Index() {
       {/* Contact Section */}
       <section id="contact" className="container py-12">
         <div className="mx-auto max-w-3xl rounded-lg bg-white p-6 shadow ring-1 ring-slate-100">
-          <h2 className="text-2xl font-extrabold text-slate-900">Contact Support</h2>
-          <p className="mt-2 text-sm text-slate-600">Send us a message and our support team will be notified.</p>
+          <h2 className="text-2xl font-extrabold text-slate-900">
+            Contact Support
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Send us a message and our support team will be notified.
+          </p>
 
           <form
             onSubmit={async (e) => {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
               const fd = new FormData(form);
-              const name = String(fd.get('name') || patientName || 'anonymous');
-              const email = String(fd.get('email') || '');
-              const message = String(fd.get('message') || 'Needs assistance');
+              const name = String(fd.get("name") || patientName || "anonymous");
+              const email = String(fd.get("email") || "");
+              const message = String(fd.get("message") || "Needs assistance");
 
               try {
-                const res = await fetch('/api/support', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ patientName: name, message: `${message}${email ? ` (Email: ${email})` : ''}` }),
+                const res = await fetch("/api/support", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    patientName: name,
+                    message: `${message}${email ? ` (Email: ${email})` : ""}`,
+                  }),
                 });
-                if (!res.ok) throw new Error('Network error');
-                setStatusMessage('Support request sent. Our team will reach out shortly.');
+                if (!res.ok) throw new Error("Network error");
+                setStatusMessage(
+                  "Support request sent. Our team will reach out shortly.",
+                );
                 setTimeout(() => setStatusMessage(null), 5000);
                 form.reset();
               } catch (err) {
-                console.error('Support request failed', err);
-                alert('Unable to send support request. Try again later.');
+                console.error("Support request failed", err);
+                alert("Unable to send support request. Try again later.");
               }
             }}
             className="mt-4 grid gap-3"
           >
             <label className="text-sm text-slate-700">Your name</label>
-            <input name="name" defaultValue={patientName} className="rounded-md border px-3 py-2 text-sm" />
-            <label className="text-sm text-slate-700">Your email (optional)</label>
-            <input name="email" type="email" className="rounded-md border px-3 py-2 text-sm" />
+            <input
+              name="name"
+              defaultValue={patientName}
+              className="rounded-md border px-3 py-2 text-sm"
+            />
+            <label className="text-sm text-slate-700">
+              Your email (optional)
+            </label>
+            <input
+              name="email"
+              type="email"
+              className="rounded-md border px-3 py-2 text-sm"
+            />
             <label className="text-sm text-slate-700">Message</label>
-            <textarea name="message" required className="rounded-md border px-3 py-2 text-sm min-h-[100px]" />
+            <textarea
+              name="message"
+              required
+              className="rounded-md border px-3 py-2 text-sm min-h-[100px]"
+            />
 
             <div className="flex items-center justify-between pt-2">
-              <button type="submit" className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-semibold text-white">Send</button>
-              <button type="button" onClick={() => { setStatusMessage(null); (document.querySelector('#contact form') as HTMLFormElement)?.reset(); }} className="text-sm text-slate-500">Clear</button>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-semibold text-white"
+              >
+                Send
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusMessage(null);
+                  (
+                    document.querySelector("#contact form") as HTMLFormElement
+                  )?.reset();
+                }}
+                className="text-sm text-slate-500"
+              >
+                Clear
+              </button>
             </div>
 
-            {statusMessage && <p className="mt-2 text-sm text-emerald-700">{statusMessage}</p>}
+            {statusMessage && (
+              <p className="mt-2 text-sm text-emerald-700">{statusMessage}</p>
+            )}
           </form>
         </div>
       </section>
@@ -1432,38 +1483,70 @@ export default function Index() {
       {/* Privacy Section */}
       <section id="privacy" className="container py-12">
         <div className="mx-auto max-w-3xl rounded-lg bg-white p-6 shadow ring-1 ring-slate-100">
-          <h2 className="text-2xl font-extrabold text-slate-900">Privacy & Data</h2>
-          <p className="mt-2 text-sm text-slate-600">We respect your privacy. This prototype stores minimal data locally and sends support messages to the demo server. Toggle your consent below.</p>
+          <h2 className="text-2xl font-extrabold text-slate-900">
+            Privacy & Data
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            We respect your privacy. This prototype stores minimal data locally
+            and sends support messages to the demo server. Toggle your consent
+            below.
+          </p>
 
           <div className="mt-4 flex items-center gap-3">
             <label className="inline-flex items-center gap-2">
-              <input id="privacy-consent" type="checkbox" defaultChecked={localStorage.getItem('consent') === '1'} onChange={(e) => {
-                try { if (e.target.checked) localStorage.setItem('consent','1'); else localStorage.removeItem('consent'); } catch (err) {}
-                setStatusMessage(e.target.checked ? 'Consent saved' : 'Consent removed');
-                setTimeout(() => setStatusMessage(null), 2500);
-              }} />
-              <span className="text-sm text-slate-700">I consent to store my non-sensitive data for this prototype</span>
+              <input
+                id="privacy-consent"
+                type="checkbox"
+                defaultChecked={localStorage.getItem("consent") === "1"}
+                onChange={(e) => {
+                  try {
+                    if (e.target.checked) localStorage.setItem("consent", "1");
+                    else localStorage.removeItem("consent");
+                  } catch (err) {}
+                  setStatusMessage(
+                    e.target.checked ? "Consent saved" : "Consent removed",
+                  );
+                  setTimeout(() => setStatusMessage(null), 2500);
+                }}
+              />
+              <span className="text-sm text-slate-700">
+                I consent to store my non-sensitive data for this prototype
+              </span>
             </label>
           </div>
 
           <div className="mt-4 text-sm text-slate-600">
-            <p>This prototype demonstrates how patient triage and reports could be handled. No real PHI is sent to third-party services in this demo. For production, connect a secure backend and obtain explicit consent.</p>
+            <p>
+              This prototype demonstrates how patient triage and reports could
+              be handled. No real PHI is sent to third-party services in this
+              demo. For production, connect a secure backend and obtain explicit
+              consent.
+            </p>
             <details className="mt-2">
-              <summary className="cursor-pointer text-sm font-medium text-slate-800">Data handling details</summary>
+              <summary className="cursor-pointer text-sm font-medium text-slate-800">
+                Data handling details
+              </summary>
               <div className="mt-2 text-sm text-slate-600">
                 <ul className="list-disc ml-5">
-                  <li>Support messages: kept in-memory for demo and broadcast via SSE.</li>
+                  <li>
+                    Support messages: kept in-memory for demo and broadcast via
+                    SSE.
+                  </li>
                   <li>Reports: stored in-memory via the demo server.</li>
-                  <li>For production, use secure storage (Neon/Supabase) and encryption at rest.</li>
+                  <li>
+                    For production, use secure storage (Neon/Supabase) and
+                    encryption at rest.
+                  </li>
                 </ul>
               </div>
             </details>
           </div>
 
-          {statusMessage && <p className="mt-3 text-sm text-emerald-700">{statusMessage}</p>}
+          {statusMessage && (
+            <p className="mt-3 text-sm text-emerald-700">{statusMessage}</p>
+          )}
         </div>
       </section>
-
     </div>
   );
 }
