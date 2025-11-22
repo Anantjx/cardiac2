@@ -50,6 +50,8 @@ export default function Index() {
 
   const [qrData, setQrData] = useState<string | null>(null);
   const [qrInput, setQrInput] = useState("");
+  const [checkoutTime, setCheckoutTime] = useState<Date | null>(null);
+  const [checkinTime] = useState<Date>(new Date());
 
   useEffect(() => {
     fetchAll();
