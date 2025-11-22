@@ -49,7 +49,7 @@ export default function Header() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: idx * 0.05 }}
-              onClick={playClickSound}
+              onClick={() => playSound("click")}
               whileHover={{ backgroundColor: "rgb(241, 245, 249)" }}
               className="text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg px-3 py-2 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             >
@@ -101,7 +101,7 @@ export default function Header() {
               >
                 <a
                   href={item.href}
-                  onClick={playClickSound}
+                  onClick={() => playSound("click")}
                   className="block py-3 px-3 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors duration-200"
                 >
                   {item.label}
