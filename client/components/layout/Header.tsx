@@ -27,7 +27,7 @@ export default function Header() {
           href="#home"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={playClickSound}
+          onClick={() => playSound("click")}
           className="inline-flex items-center gap-2 font-bold text-xl tracking-tight"
         >
           <motion.div
