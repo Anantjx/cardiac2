@@ -1,4 +1,4 @@
-import { RequestHandler } from "express";
+import { RequestHandler } from "express"; 
 
 type Appointment = {
   id: string;

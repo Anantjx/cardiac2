@@ -10,3 +10,22 @@
 export interface DemoResponse {
   message: string;
 }
+
+/**
+ * Lab report analysis response type
+ */
+export interface LabReportLevel {
+  name: string;
+  value: string;
+  unit?: string;
+  status: "Normal" | "High" | "Low" | "Critical" | "Unknown";
+  referenceRange?: string;
+}
+
+export interface LabReportAnalysis {
+  summary: string;
+  levels: LabReportLevel[];
+  findings: string[];
+  recommendations?: string[];
+  riskLevel?: "Low" | "Medium" | "High" | "Critical";
+}

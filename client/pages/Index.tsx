@@ -12,6 +12,7 @@ import {
 type RiskLevel = "High" | "Medium" | "Low";
 
 import { jsPDF } from "jspdf";
+import { LabReportAnalysis } from "@shared/api";
 
 export default function Index() {
   const [patientName, setPatientName] = useState("");
@@ -28,6 +29,7 @@ export default function Index() {
   const [reportDetails, setReportDetails] = useState<{
     cholesterol?: number;
     ecg?: string;
+    analysis?: LabReportAnalysis;
   } | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusStage, setStatusStage] = useState<number>(0); // 0 none, 1 triage, 2 lab, 3 final
@@ -501,54 +503,127 @@ export default function Index() {
 
     // Show analyzing status
     setStatusStage(2);
-    setStatusMessage("Analyzing lab report...");
+    setStatusMessage("Analyzing lab report with AI...");
 
-    // Derive a pseudorandom cholesterol value from filename + size
-    const name = f.name || "file";
-    let sum = 0;
-    for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
-    sum += f.size % 100;
-    const cholesterol = 180 + (sum % 120); // between 180 and 299
-    const ecg =
-      Math.random() > 0.7 ? "Mild ST Elevation" : "Normal Sinus Rhythm";
+    try {
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64Data = (e.target?.result as string)?.split(",")[1] || "";
+        
+        try {
+          // Call the analysis API
+          const response = await fetch("/api/analyze-lab-report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileData: base64Data,
+              fileName: f.name,
+              mimeType: f.type,
+              patientName: patientName || undefined,
+            }),
+          });
 
-    // mock processing delay
-    setTimeout(async () => {
-      setReportReady(true);
-      setReportDetails({ cholesterol, ecg });
+          if (!response.ok) {
+            let errorMessage = "Failed to analyze lab report";
+            try {
+              const errorData = await response.json();
+              if (errorData.details) {
+                errorMessage = typeof errorData.details === 'string' ? errorData.details : JSON.stringify(errorData.details);
+              } else if (errorData.error) {
+                errorMessage = typeof errorData.error === 'string' ? errorData.error : JSON.stringify(errorData.error);
+              } else {
+                errorMessage = JSON.stringify(errorData);
+              }
+            } catch (e) {
+              // If JSON parsing fails, use the response text
+              const text = await response.text().catch(() => "Unknown error");
+              errorMessage = text || "Failed to analyze lab report";
+            }
+            throw new Error(errorMessage);
+          }
 
-      // clear status if triage already finished
-      if (triage) {
-        setStatusMessage("Lab analysis complete");
-        setStatusStage(3);
-        setTimeout(() => setStatusMessage("Results ready"), 600);
-      } else {
-        setStatusMessage(null);
-        setStatusStage(0);
-      }
+          const analysis: LabReportAnalysis = await response.json();
 
-      // Send report to server for patient history
-      try {
-        await fetch("/api/reports", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            patientName: patientName || "anonymous",
-            fileName: name,
+          // Extract cholesterol and ECG from analysis for backward compatibility
+          const cholesterolLevel = analysis.levels.find(
+            (l) =>
+              l.name.toLowerCase().includes("cholesterol") &&
+              !l.name.toLowerCase().includes("hdl") &&
+              !l.name.toLowerCase().includes("ldl")
+          );
+          const ecgFinding = analysis.findings.find((f) =>
+            f.toLowerCase().includes("ecg")
+          ) || analysis.findings.find((f) =>
+            f.toLowerCase().includes("electrocardiogram")
+          );
+
+          const cholesterol = cholesterolLevel
+            ? parseFloat(cholesterolLevel.value)
+            : undefined;
+          const ecg = ecgFinding || analysis.summary;
+
+          setReportReady(true);
+          setReportDetails({
             cholesterol,
             ecg,
-          }),
-        });
-        // refresh reports list for this patient
-        const r = await fetch(
-          `/api/reports?patient=${encodeURIComponent(patientName || "anonymous")}`,
-        );
-        const list = await r.json();
-        setReports(list);
-      } catch (e) {
-        console.error("Report save failed", e);
-      }
-    }, 700);
+            analysis,
+          });
+
+          // clear status if triage already finished
+          if (triage) {
+            setStatusMessage("Lab analysis complete");
+            setStatusStage(3);
+            setTimeout(() => setStatusMessage("Results ready"), 600);
+          } else {
+            setStatusMessage(null);
+            setStatusStage(0);
+          }
+
+          // Send report to server for patient history
+          try {
+            await fetch("/api/reports", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                patientName: patientName || "anonymous",
+                fileName: f.name,
+                cholesterol,
+                ecg,
+              }),
+            });
+            // refresh reports list for this patient
+            const r = await fetch(
+              `/api/reports?patient=${encodeURIComponent(patientName || "anonymous")}`,
+            );
+            const list = await r.json();
+            setReports(list);
+          } catch (e) {
+            console.error("Report save failed", e);
+          }
+        } catch (error: any) {
+          console.error("Error analyzing lab report:", error);
+          let errorMsg = "Unknown error";
+          if (error?.message) {
+            errorMsg = typeof error.message === 'string' ? error.message : JSON.stringify(error.message);
+          } else if (error) {
+            errorMsg = typeof error === 'string' ? error : JSON.stringify(error);
+          }
+          alert("Failed to analyze lab report: " + errorMsg);
+          setStatusMessage(null);
+          setStatusStage(0);
+          setReportReady(false);
+        }
+      };
+
+      // Read file as data URL for base64 encoding
+      reader.readAsDataURL(f);
+    } catch (error: any) {
+      console.error("Error reading file:", error);
+      alert("Failed to read file: " + (error.message || "Unknown error"));
+      setStatusMessage(null);
+      setStatusStage(0);
+    }
   }
 
   async function confirmAppointment(doctorId: string, slot: string) {
@@ -605,7 +680,36 @@ export default function Index() {
         lines.push("Triage: Not available");
       }
       lines.push("");
-      if (reportDetails) {
+      if (reportDetails?.analysis) {
+        lines.push("Lab Report Analysis:");
+        lines.push(`Summary: ${reportDetails.analysis.summary}`);
+        if (reportDetails.analysis.riskLevel) {
+          lines.push(`Risk Level: ${reportDetails.analysis.riskLevel}`);
+        }
+        if (reportDetails.analysis.levels && reportDetails.analysis.levels.length > 0) {
+          lines.push("");
+          lines.push("Lab Values:");
+          reportDetails.analysis.levels.forEach((level) => {
+            lines.push(
+              `  ${level.name}: ${level.value} ${level.unit || ""} (${level.status})${level.referenceRange ? ` [Ref: ${level.referenceRange}]` : ""}`
+            );
+          });
+        }
+        if (reportDetails.analysis.findings && reportDetails.analysis.findings.length > 0) {
+          lines.push("");
+          lines.push("Key Findings:");
+          reportDetails.analysis.findings.forEach((finding) => {
+            lines.push(`  • ${finding}`);
+          });
+        }
+        if (reportDetails.analysis.recommendations && reportDetails.analysis.recommendations.length > 0) {
+          lines.push("");
+          lines.push("Recommendations:");
+          reportDetails.analysis.recommendations.forEach((rec) => {
+            lines.push(`  • ${rec}`);
+          });
+        }
+      } else if (reportDetails) {
         lines.push(
           `Lab - Cholesterol: ${reportDetails.cholesterol ?? "-"} mg/dL`,
         );
@@ -1132,32 +1236,154 @@ export default function Index() {
                     {reportFile ? reportFile.name : "No file selected"}
                   </p>
                   <p className="text-lg font-semibold text-slate-800">
-                    Mock Report Summary
+                    {reportDetails?.analysis ? "AI Analysis Summary" : "Report Summary"}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                  <p className="text-sm text-slate-500">Cholesterol Level</p>
-                  <p className="mt-1 text-xl font-bold text-slate-900">
-                    {reportDetails ? `${reportDetails.cholesterol} mg/dL` : "—"}
-                  </p>
+              {reportDetails?.analysis ? (
+                <div className="mt-4 space-y-4">
+                  {/* Summary */}
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-700">Summary</p>
+                    <p className="mt-1 text-sm text-slate-600">{reportDetails.analysis.summary}</p>
+                  </div>
+
+                  {/* Risk Level */}
+                  {reportDetails.analysis.riskLevel && (
+                    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                      <p className="text-sm text-slate-500">Risk Level</p>
+                      <p className={`mt-1 text-xl font-bold ${
+                        reportDetails.analysis.riskLevel === "Critical" || reportDetails.analysis.riskLevel === "High"
+                          ? "text-red-600"
+                          : reportDetails.analysis.riskLevel === "Medium"
+                          ? "text-yellow-600"
+                          : "text-green-600"
+                      }`}>
+                        {reportDetails.analysis.riskLevel}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Lab Levels */}
+                  {reportDetails.analysis.levels && reportDetails.analysis.levels.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700 mb-2">Lab Values</p>
+                      <div className="space-y-2">
+                        {reportDetails.analysis.levels.map((level, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-slate-200"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <p className="font-semibold text-slate-800">{level.name}</p>
+                                <p className="text-sm text-slate-600">
+                                  {level.value} {level.unit || ""}
+                                  {level.referenceRange && (
+                                    <span className="text-slate-400 ml-2">
+                                      (Ref: {level.referenceRange})
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                              <span
+                                className={`ml-2 rounded-full px-2 py-1 text-xs font-semibold ${
+                                  level.status === "Critical" || level.status === "High"
+                                    ? "bg-red-100 text-red-700"
+                                    : level.status === "Low"
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : level.status === "Normal"
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {level.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Findings */}
+                  {reportDetails.analysis.findings && reportDetails.analysis.findings.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700 mb-2">Key Findings</p>
+                      <ul className="space-y-1">
+                        {reportDetails.analysis.findings.map((finding, idx) => (
+                          <li key={idx} className="text-sm text-slate-600 flex items-start gap-2">
+                            <span className="text-slate-400 mt-1">•</span>
+                            <span>{finding}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Recommendations */}
+                  {reportDetails.analysis.recommendations && reportDetails.analysis.recommendations.length > 0 && (
+                    <div className="rounded-xl bg-blue-50 p-4 ring-1 ring-blue-200">
+                      <p className="text-sm font-semibold text-blue-900 mb-2">Recommendations</p>
+                      <ul className="space-y-1">
+                        {reportDetails.analysis.recommendations.map((rec, idx) => (
+                          <li key={idx} className="text-sm text-blue-800 flex items-start gap-2">
+                            <span className="text-blue-400 mt-1">•</span>
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Legacy display for backward compatibility */}
+                  {(reportDetails.cholesterol || reportDetails.ecg) && (
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      {reportDetails.cholesterol && (
+                        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                          <p className="text-sm text-slate-500">Cholesterol Level</p>
+                          <p className="mt-1 text-xl font-bold text-slate-900">
+                            {reportDetails.cholesterol} mg/dL
+                          </p>
+                        </div>
+                      )}
+                      {reportDetails.ecg && (
+                        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                          <p className="text-sm text-slate-500">ECG Summary</p>
+                          <p className="mt-1 text-xl font-bold text-slate-900">
+                            {reportDetails.ecg}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                  <p className="text-sm text-slate-500">ECG Summary</p>
-                  <p className="mt-1 text-xl font-bold text-slate-900">
-                    {reportDetails ? reportDetails.ecg : "—"}
-                  </p>
+              ) : (
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                    <p className="text-sm text-slate-500">Cholesterol Level</p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">
+                      {reportDetails ? `${reportDetails.cholesterol} mg/dL` : "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                    <p className="text-sm text-slate-500">ECG Summary</p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">
+                      {reportDetails ? reportDetails.ecg : "—"}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <p className="mt-3 text-sm text-slate-500">
                 {reportFile
                   ? reportReady
-                    ? "This is a prototype preview based on your upload."
-                    : "Processing report..."
-                  : "Upload a report to see a preview here."}
+                    ? reportDetails?.analysis
+                      ? "AI analysis complete. Review the detailed results above."
+                      : "This is a prototype preview based on your upload."
+                    : "Processing report with AI..."
+                  : "Upload a report to see AI-powered analysis here."}
               </p>
 
               {reports.length > 0 && (
