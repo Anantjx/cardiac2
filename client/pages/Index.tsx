@@ -845,6 +845,97 @@ export default function Index() {
     },
   };
 
+  // Floating grid element component
+  const FloatingGridElements = () => (
+    <div className="absolute inset-0 overflow-hidden -z-20">
+      {/* Animated grid background */}
+      <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+        <defs>
+          <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(229, 57, 53, 0.08)" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+      </svg>
+
+      {/* Floating elements */}
+      {[...Array(12)].map((_, i) => (
+        <motion.div
+          key={`float-${i}`}
+          className={`absolute rounded-full ${
+            i % 3 === 0
+              ? "bg-red-400/10 w-32 h-32"
+              : i % 3 === 1
+              ? "bg-red-300/5 w-48 h-48"
+              : "bg-red-200/5 w-40 h-40"
+          }`}
+          style={{
+            left: `${(i % 4) * 25}%`,
+            top: `${Math.floor(i / 4) * 33}%`,
+          }}
+          animate={{
+            y: [0, 30, 0],
+            x: [0, 15, -15, 0],
+            opacity: [0.3, 0.6, 0.3],
+            scale: [0.8, 1.1, 0.8],
+          }}
+          transition={{
+            duration: 8 + i,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: i * 0.2,
+          }}
+        />
+      ))}
+
+      {/* Floating heart icons */}
+      {[...Array(8)].map((_, i) => (
+        <motion.div
+          key={`heart-${i}`}
+          className="absolute"
+          style={{
+            left: `${15 + (i % 3) * 25}%`,
+            top: `${20 + (i % 2) * 40}%`,
+          }}
+          animate={{
+            y: [0, -40, 0],
+            opacity: [0, 1, 0],
+          }}
+          transition={{
+            duration: 6 + i,
+            repeat: Infinity,
+            ease: "easeOut",
+            delay: i * 0.3,
+          }}
+        >
+          <Heart className="w-6 h-6 text-red-500/30" />
+        </motion.div>
+      ))}
+
+      {/* Floating dots */}
+      {[...Array(16)].map((_, i) => (
+        <motion.div
+          key={`dot-${i}`}
+          className="absolute w-2 h-2 rounded-full bg-red-500/20"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+          }}
+          animate={{
+            scale: [1, 2, 1],
+            opacity: [0.2, 0.8, 0.2],
+            y: [0, -20, 0],
+          }}
+          transition={{
+            duration: 5 + Math.random() * 3,
+            repeat: Infinity,
+            delay: i * 0.15,
+          }}
+        />
+      ))}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -853,109 +944,110 @@ export default function Index() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.8 }}
-        className="relative isolate overflow-hidden pt-20 pb-24 md:pb-32"
+        className="relative isolate overflow-hidden min-h-screen flex items-center justify-center pt-20 pb-24 md:pb-32"
       >
+        {/* Dynamic background */}
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-red-50 via-white to-slate-50" />
-        <div className="container mx-auto">
-          <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-8 items-center">
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="flex flex-col items-start justify-center"
-            >
-              <motion.div variants={itemVariants} className="mb-6">
-                <span className="inline-block px-4 py-2 rounded-full bg-red-100 text-red-700 text-sm font-semibold">
-                  Advanced Cardiac Care
-                </span>
-              </motion.div>
+        <FloatingGridElements />
 
+        {/* Main content - centered */}
+        <div className="container mx-auto px-4 md:px-6 relative z-10">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="flex flex-col items-center justify-center text-center"
+          >
+            {/* Badge */}
+            <motion.div variants={itemVariants} className="mb-8">
+              <motion.span
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="inline-block px-6 py-3 rounded-full bg-gradient-to-r from-red-100 to-red-50 text-red-700 text-sm font-semibold border border-red-200 shadow-lg"
+              >
+                ✨ Advanced Cardiac Intelligence
+              </motion.span>
+            </motion.div>
+
+            {/* Main title with gradient and animation */}
+            <motion.div variants={itemVariants} className="mb-6 max-w-4xl">
               <motion.h1
-                variants={itemVariants}
-                className="text-4xl md:text-6xl font-bold tracking-tight text-slate-900 leading-tight"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 3, repeat: Infinity }}
+                className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight leading-tight bg-gradient-to-r from-red-600 via-red-500 to-red-700 bg-clip-text text-transparent drop-shadow-lg"
               >
-                CardiaX: Smart Cardiac Intelligence
+                CardiaX
               </motion.h1>
-
               <motion.p
-                variants={itemVariants}
-                className="mt-6 max-w-xl text-lg md:text-xl text-slate-600 leading-relaxed"
+                animate={{ opacity: [0.7, 1, 0.7] }}
+                transition={{ duration: 3, repeat: Infinity, delay: 0.2 }}
+                className="text-2xl md:text-3xl font-bold text-slate-800 mt-4"
               >
-                Instant AI-powered triage, lab analysis, and appointment scheduling for emergency cardiac care. 24/7 monitoring and expert assessment in minutes.
+                Smart Cardiac Intelligence
               </motion.p>
-
-              <motion.div
-                variants={itemVariants}
-                className="mt-8 flex flex-wrap gap-4"
-              >
-                <motion.a
-                  href="#check-in"
-                  onClick={() => playSound("click")}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-red-600 hover:bg-red-700 px-8 py-4 text-lg font-semibold text-white shadow-lg transition-all duration-200"
-                >
-                  <Heart className="h-5 w-5" />
-                  Start Assessment
-                </motion.a>
-                <motion.a
-                  href="#help"
-                  onClick={() => playSound("click")}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-white hover:bg-slate-50 px-8 py-4 text-lg font-semibold text-slate-900 shadow-md border border-slate-200 transition-all duration-200"
-                >
-                  Learn More
-                </motion.a>
-              </motion.div>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="relative hidden lg:flex items-center justify-center"
+            {/* Subtitle */}
+            <motion.p
+              variants={itemVariants}
+              className="mt-8 max-w-2xl text-lg md:text-xl text-slate-600 leading-relaxed"
             >
-              <div className="relative w-full max-w-md">
-                <div className="absolute inset-0 bg-gradient-to-tr from-red-200 to-transparent rounded-3xl blur-3xl opacity-40" />
-                <motion.div
-                  animate={{ y: [0, -10, 0] }}
-                  transition={{ duration: 4, repeat: Infinity }}
-                  className="relative bg-gradient-to-br from-white to-slate-50 rounded-3xl shadow-2xl p-8 border border-slate-100"
-                >
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                        <Heart className="h-6 w-6 text-red-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-slate-500 font-medium">Real-time Assessment</p>
-                        <p className="font-semibold text-slate-900">Instant Triage</p>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      {[
-                        { label: "AI Analysis", value: "100% Accurate" },
-                        { label: "Response Time", value: "<2 minutes" },
-                        { label: "Available", value: "24/7" },
-                      ].map((item, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.3 + i * 0.1 }}
-                          className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-red-50 transition-colors"
-                        >
-                          <span className="text-slate-600">{item.label}</span>
-                          <span className="font-semibold text-red-600">{item.value}</span>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
+              Instant AI-powered triage, lab analysis, and appointment scheduling for emergency cardiac care. 24/7 monitoring and expert assessment in minutes.
+            </motion.p>
+
+            {/* CTA Buttons */}
+            <motion.div
+              variants={itemVariants}
+              className="mt-12 flex flex-col sm:flex-row gap-4 justify-center"
+            >
+              <motion.a
+                href="#check-in"
+                onClick={() => playSound("click")}
+                whileHover={{ scale: 1.08, boxShadow: "0 20px 40px rgba(220, 38, 38, 0.3)" }}
+                whileTap={{ scale: 0.95 }}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 px-10 py-5 text-lg font-bold text-white shadow-xl transition-all duration-200"
+              >
+                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                  <Heart className="h-6 w-6" />
                 </motion.div>
-              </div>
+                Start Assessment
+              </motion.a>
+              <motion.a
+                href="#reports"
+                onClick={() => playSound("click")}
+                whileHover={{ scale: 1.08, boxShadow: "0 20px 40px rgba(15, 23, 42, 0.15)" }}
+                whileTap={{ scale: 0.95 }}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white hover:bg-slate-100 px-10 py-5 text-lg font-bold text-red-600 shadow-lg border-2 border-red-200 transition-all duration-200"
+              >
+                📊 View Reports
+              </motion.a>
             </motion.div>
-          </div>
+
+            {/* Floating stats cards */}
+            <motion.div
+              variants={itemVariants}
+              className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-3xl"
+            >
+              {[
+                { icon: "⚡", label: "AI Analysis", value: "100% Accurate", delay: 0 },
+                { icon: "⏱️", label: "Response Time", value: "<2 minutes", delay: 0.1 },
+                { icon: "🛡️", label: "Available", value: "24/7 Support", delay: 0.2 },
+              ].map((stat, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 + stat.delay }}
+                  whileHover={{ y: -10, boxShadow: "0 20px 40px rgba(220, 38, 38, 0.2)" }}
+                  className="p-6 rounded-2xl bg-white/80 backdrop-blur border border-red-100 shadow-lg hover:shadow-2xl transition-all"
+                >
+                  <div className="text-4xl mb-3">{stat.icon}</div>
+                  <p className="text-sm text-slate-600 font-medium">{stat.label}</p>
+                  <p className="text-lg font-bold text-red-600 mt-1">{stat.value}</p>
+                </motion.div>
+              ))}
+            </motion.div>
+          </motion.div>
         </div>
       </motion.section>
 
