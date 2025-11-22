@@ -1692,83 +1692,244 @@ export default function Index() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
-          className="mx-auto max-w-4xl"
+          className="mx-auto max-w-5xl"
         >
           <motion.div variants={itemVariants} className="mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Schedule Appointment</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Schedule & Share Appointments</h2>
             <p className="mt-3 text-lg text-slate-600">
-              View available doctors and book your appointment instantly.
+              Assign doctors, view upcoming appointments, and share via QR code with friends.
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <motion.div
-              variants={itemVariants}
-              className="p-8 rounded-3xl bg-white shadow-xl border border-slate-100"
-            >
-              <h3 className="text-2xl font-bold text-slate-900 mb-6">Available Doctors</h3>
-              <div className="space-y-4">
-                {doctors.slice(0, 3).map((doc, idx) => (
-                  <motion.div
-                    key={doc.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    viewport={{ once: true }}
-                    className="flex items-center justify-between p-4 rounded-xl hover:bg-red-50 transition-colors border border-slate-100 hover:border-red-300"
+          {/* Top: Available Doctors - Assign Button */}
+          <motion.div
+            variants={itemVariants}
+            className="mb-8 p-8 rounded-3xl bg-white shadow-xl border border-slate-100"
+          >
+            <h3 className="text-2xl font-bold text-slate-900 mb-6">👨‍⚕️ Available Doctors - Assign Now</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {doctors.map((doc, idx) => (
+                <motion.div
+                  key={doc.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: idx * 0.1 }}
+                  viewport={{ once: true }}
+                  className="flex flex-col items-center gap-4 p-6 rounded-2xl hover:bg-gradient-to-br hover:from-red-50 hover:to-red-100 transition-all border border-slate-200 hover:border-red-300"
+                >
+                  <img
+                    src={doc.photo}
+                    alt={doc.name}
+                    className="h-20 w-20 rounded-full border-4 border-red-300 shadow-lg"
+                  />
+                  <div className="text-center">
+                    <p className="font-bold text-slate-900 text-lg">{doc.name}</p>
+                    <p className="text-sm text-slate-600">{doc.specialty}</p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      if (!patientName) {
+                        alert("Please enter your name in the Patient Assessment section first");
+                        return;
+                      }
+                      playSound("success");
+                      confirmAppointment(doc.id, new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString());
+                    }}
+                    className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold shadow-lg transition-all"
                   >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={doc.photo}
-                        alt={doc.name}
-                        className="h-12 w-12 rounded-full border-2 border-red-200"
-                      />
-                      <div>
-                        <p className="font-semibold text-slate-900">{doc.name}</p>
-                        <p className="text-sm text-slate-600">{doc.specialty}</p>
-                      </div>
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => playSound("click")}
-                      className="px-4 py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 font-semibold transition-all text-sm"
-                    >
-                      View
-                    </motion.button>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
+                    🎯 Assign Now
+                  </motion.button>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
 
+          {/* Bottom: Upcoming Appointments + QR Share */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Upcoming Appointments */}
             <motion.div
               variants={itemVariants}
               className="p-8 rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-50 shadow-xl border border-blue-200"
             >
               <div className="flex items-center gap-3 mb-6">
                 <CalendarClock className="h-8 w-8 text-blue-600" />
-                <h3 className="text-2xl font-bold text-slate-900">Upcoming Appointments</h3>
+                <h3 className="text-2xl font-bold text-slate-900">📅 Upcoming Appointments</h3>
               </div>
               {appointments.length > 0 ? (
-                <div className="space-y-4">
-                  {appointments.slice(0, 3).map((appt, idx) => (
+                <motion.div
+                  className="space-y-4"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {appointments.map((appt, idx) => (
                     <motion.div
                       key={appt.id}
                       initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
+                      animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.1 }}
-                      viewport={{ once: true }}
-                      className="p-4 rounded-xl bg-white border border-blue-200"
+                      className="p-5 rounded-xl bg-white border-2 border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all"
                     >
-                      <p className="font-semibold text-slate-900">{appt.patientName}</p>
-                      <p className="text-sm text-slate-600 mt-1">
-                        {new Date(appt.time).toLocaleString()}
-                      </p>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <p className="font-bold text-slate-900 text-lg">{appt.patientName}</p>
+                          <p className="text-sm text-slate-600 mt-1 font-medium">
+                            📍 {new Date(appt.time).toLocaleString()}
+                          </p>
+                          {/* Find and display doctor name */}
+                          {doctors.find((d) => d.id === appt.doctorId) && (
+                            <p className="text-xs text-blue-600 mt-2">
+                              👨‍⚕️ Dr. {doctors.find((d) => d.id === appt.doctorId)?.name}
+                            </p>
+                          )}
+                        </div>
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => {
+                            playSound("click");
+                            setQrData(
+                              `appointment:${encodeURIComponent(appt.patientName)}:${appt.doctorId}:${appt.id}:${Date.now()}`
+                            );
+                          }}
+                          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-all"
+                          title="Share this appointment via QR code"
+                        >
+                          📤 Share
+                        </motion.button>
+                      </div>
                     </motion.div>
                   ))}
-                </div>
+                </motion.div>
               ) : (
-                <p className="text-slate-600 text-center py-8">No appointments scheduled</p>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center py-12"
+                >
+                  <p className="text-slate-600 text-lg font-medium">📭 No appointments scheduled yet</p>
+                  <p className="text-sm text-slate-500 mt-2">Assign a doctor above to create an appointment</p>
+                </motion.div>
+              )}
+            </motion.div>
+
+            {/* QR Code Share */}
+            <motion.div
+              variants={itemVariants}
+              className="p-8 rounded-3xl bg-gradient-to-br from-purple-50 to-pink-50 shadow-xl border border-purple-200"
+            >
+              <h3 className="text-2xl font-bold text-slate-900 mb-6">🔗 Share with Friends</h3>
+
+              {qrData ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="space-y-4"
+                >
+                  <p className="text-sm text-slate-700 font-medium">
+                    📱 Send this QR code to your friend. They can scan it to see and manage your appointment.
+                  </p>
+
+                  {/* QR Code Display */}
+                  <div className="flex justify-center p-6 bg-white rounded-2xl border-2 border-purple-300 shadow-lg">
+                    <div className="text-center">
+                      <div
+                        className="inline-block p-4 bg-white rounded-xl border-4 border-purple-400"
+                        style={{
+                          fontSize: "0.8em",
+                        }}
+                      >
+                        <svg width="240" height="240" viewBox="0 0 100 100">
+                          {/* Simple QR-like pattern from data */}
+                          {qrData.split("").map((char, i) => (
+                            <rect
+                              key={i}
+                              x={(i % 10) * 10}
+                              y={Math.floor(i / 10) * 10}
+                              width="10"
+                              height="10"
+                              fill={
+                                char.charCodeAt(0) % 2 === 0 ? "#DC2626" : "#ffffff"
+                              }
+                              stroke="none"
+                            />
+                          ))}
+                        </svg>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-3 font-mono">
+                        {qrData.substring(0, 30)}...
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Copy to Clipboard */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      playSound("success");
+                      navigator.clipboard.writeText(qrData);
+                      alert("✓ QR data copied to clipboard!");
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md transition-all"
+                  >
+                    📋 Copy QR Data
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      playSound("click");
+                      setQrData(null);
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-300 hover:bg-slate-400 text-slate-900 font-bold shadow-md transition-all"
+                  >
+                    ✕ Close QR
+                  </motion.button>
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="space-y-4"
+                >
+                  <p className="text-sm text-slate-700 font-medium">
+                    👉 Click "Share" on any appointment above to generate a QR code.
+                  </p>
+
+                  <div className="p-6 rounded-2xl bg-white/70 border-2 border-purple-300 text-center">
+                    <div className="text-6xl mb-3">🤝</div>
+                    <p className="text-slate-700 font-semibold">Share Appointments Instantly</p>
+                    <p className="text-xs text-slate-600 mt-2">
+                      Your friends can scan the QR code to view and confirm the same appointment
+                    </p>
+                  </div>
+
+                  {/* Paste QR to Access */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Or Paste Friend's QR Data:
+                    </label>
+                    <textarea
+                      value={qrInput}
+                      onChange={(e) => setQrInput(e.target.value)}
+                      placeholder="Paste QR appointment data here..."
+                      className="w-full p-3 rounded-lg border-2 border-purple-300 focus:border-purple-600 focus:outline-none text-sm font-mono"
+                      rows={3}
+                    />
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleScanOrPaste}
+                      className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold shadow-md transition-all"
+                    >
+                      ✓ Load Friend's Appointment
+                    </motion.button>
+                  </div>
+                </motion.div>
               )}
             </motion.div>
           </div>
