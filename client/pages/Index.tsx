@@ -7,12 +7,14 @@ import {
   CalendarClock,
   FileText,
   UserRound,
+  Heart,
 } from "lucide-react";
-
-type RiskLevel = "High" | "Medium" | "Low";
-
+import { motion } from "framer-motion";
+import { playSound } from "@/lib/sound-effects";
 import { jsPDF } from "jspdf";
 import { LabReportAnalysis } from "@shared/api";
+
+type RiskLevel = "High" | "Medium" | "Low";
 
 export default function Index() {
   const [patientName, setPatientName] = useState("");
@@ -32,7 +34,7 @@ export default function Index() {
     analysis?: LabReportAnalysis;
   } | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [statusStage, setStatusStage] = useState<number>(0); // 0 none, 1 triage, 2 lab, 3 final
+  const [statusStage, setStatusStage] = useState<number>(0);
 
   const [doctors, setDoctors] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -52,7 +54,6 @@ export default function Index() {
   useEffect(() => {
     fetchAll();
 
-    // SSE for live updates
     const es = new EventSource("/api/availability/stream");
     es.addEventListener("appointments", (e: any) => {
       try {
@@ -98,7 +99,6 @@ export default function Index() {
       setAppointments(aJson);
       setPatients(pJson);
 
-      // fetch reports for current patient if any
       try {
         const rRes = await fetch(
           `/api/reports?patient=${encodeURIComponent(patientName || "anonymous")}`,
@@ -119,7 +119,6 @@ export default function Index() {
   const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const voiceAbortRef = (window as any).__voiceAbortRef || { current: false };
-  // ensure ref persists across reloads in dev environment
   if (!(window as any).__voiceAbortRef)
     (window as any).__voiceAbortRef = voiceAbortRef;
 
@@ -128,8 +127,8 @@ export default function Index() {
   }
 
   function handleManualAnswer(id: string, value: boolean) {
-    // user chose manual mode; stop voice if active
     setManualMode(true);
+    playSound("click");
     if (voiceActive) {
       voiceAbortRef.current = true;
       setVoiceActive(false);
@@ -139,8 +138,6 @@ export default function Index() {
   }
 
   async function listenForQuestion(id: string) {
-    // single-shot listen for a specific question to improve recognition
-    // if voice flow is active, abort it
     if (voiceActive) {
       voiceAbortRef.current = true;
       setVoiceActive(false);
@@ -184,7 +181,6 @@ export default function Index() {
       const recog = new SpeechRecognition();
       recog.lang = "en-US";
       recog.interimResults = false;
-      // Allow multiple alternatives to improve chance of capturing yes/no
       recog.maxAlternatives = 3;
       recog.continuous = false;
 
@@ -243,7 +239,6 @@ export default function Index() {
         clearAll();
         console.error("Recognition error", ev);
 
-        // Safely extract code/message from event-like objects
         const code =
           ev && (ev.error || ev.code || ev.type || ev.name)
             ? ev.error || ev.code || ev.type || ev.name
@@ -293,7 +288,6 @@ export default function Index() {
       };
 
       try {
-        // Reset abort flag
         voiceAbortRef.current = false;
         recog.start();
       } catch (e) {
@@ -302,7 +296,6 @@ export default function Index() {
         resolve(null);
       }
 
-      // Poll for abort
       pollTimer = window.setInterval(() => {
         if (voiceAbortRef.current) {
           try {
@@ -314,7 +307,6 @@ export default function Index() {
         }
       }, 200);
 
-      // Timeout fallback
       timeoutId = window.setTimeout(() => {
         if (!finished) {
           try {
@@ -329,7 +321,6 @@ export default function Index() {
   }
 
   async function startVoiceTriage() {
-    // If the user already used manual mode, advise them
     if (manualMode) {
       alert(
         "You have used manual input already. Please clear answers to use voice triage.",
@@ -360,6 +351,7 @@ export default function Index() {
       return;
     }
 
+    playSound("pulse");
     setVoiceActive(true);
     setVoiceMessage("Starting voice triage...");
     voiceAbortRef.current = false;
@@ -376,7 +368,6 @@ export default function Index() {
       if (voiceAbortRef.current) break;
 
       if (!transcript) {
-        // do not repeat indefinitely; suggest manual answer
         setVoiceMessage(
           "Did not hear a clear response. Please tap Yes or No for this question.",
         );
@@ -403,6 +394,7 @@ export default function Index() {
 
     setVoiceMessage("Voice triage finished");
     setVoiceActive(false);
+    playSound("success");
     try {
       await speak("Voice triage finished. You can submit your answers now.");
     } catch {}
@@ -411,6 +403,7 @@ export default function Index() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    playSound("success");
     setLoading(true);
     setSubmitted(true);
     setAssigned(null);
@@ -419,7 +412,6 @@ export default function Index() {
       setAiAnalyzing(true);
       setStatusStage(1);
       setStatusMessage("Processing triage...");
-      // Call server-side triage endpoint with answers
       const payload = {
         patientName,
         answers: Object.keys(answers).map((k) => ({
@@ -438,18 +430,15 @@ export default function Index() {
       const data = await res.json();
       setTriage({ risk: data.risk || "Low", summary: data.summary || "" });
 
-      // Set lab details from triage response
       if (data.lab)
         setReportDetails({
           cholesterol: data.lab.cholesterol,
           ecg: data.lab.ecg,
         });
 
-      // If a report file was uploaded but processing not complete, wait and show analyzing
       if (reportFile && !reportReady) {
         setStatusStage(2);
         setStatusMessage("Analyzing lab report...");
-        // wait up to 8s for reportReady
         const waitForReport = (timeout = 8000) =>
           new Promise<void>((resolve) => {
             const start = Date.now();
@@ -466,12 +455,10 @@ export default function Index() {
         await waitForReport(8000);
       }
 
-      // finalize
       setStatusStage(3);
       setStatusMessage("Finalizing results...");
       await new Promise((r) => setTimeout(r, 700));
 
-      // Create patient
       if (patientName) {
         await fetch("/api/patients", {
           method: "POST",
@@ -485,6 +472,7 @@ export default function Index() {
       setStatusMessage("Results ready");
     } catch (err) {
       console.error(err);
+      playSound("error");
       alert("Triage failed");
       setStatusMessage(null);
       setStatusStage(0);
@@ -501,18 +489,15 @@ export default function Index() {
     setReportReady(false);
     setReportDetails(null);
 
-    // Show analyzing status
     setStatusStage(2);
     setStatusMessage("Analyzing lab report with AI...");
 
     try {
-      // Convert file to base64
       const reader = new FileReader();
       reader.onload = async (e) => {
         const base64Data = (e.target?.result as string)?.split(",")[1] || "";
         
         try {
-          // Call the analysis API
           const response = await fetch("/api/analyze-lab-report", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -536,7 +521,6 @@ export default function Index() {
                 errorMessage = JSON.stringify(errorData);
               }
             } catch (e) {
-              // If JSON parsing fails, use the response text
               const text = await response.text().catch(() => "Unknown error");
               errorMessage = text || "Failed to analyze lab report";
             }
@@ -545,7 +529,6 @@ export default function Index() {
 
           const analysis: LabReportAnalysis = await response.json();
 
-          // Extract cholesterol and ECG from analysis for backward compatibility
           const cholesterolLevel = analysis.levels.find(
             (l) =>
               l.name.toLowerCase().includes("cholesterol") &&
@@ -570,7 +553,6 @@ export default function Index() {
             analysis,
           });
 
-          // clear status if triage already finished
           if (triage) {
             setStatusMessage("Lab analysis complete");
             setStatusStage(3);
@@ -580,7 +562,6 @@ export default function Index() {
             setStatusStage(0);
           }
 
-          // Send report to server for patient history
           try {
             await fetch("/api/reports", {
               method: "POST",
@@ -592,7 +573,6 @@ export default function Index() {
                 ecg,
               }),
             });
-            // refresh reports list for this patient
             const r = await fetch(
               `/api/reports?patient=${encodeURIComponent(patientName || "anonymous")}`,
             );
@@ -609,6 +589,7 @@ export default function Index() {
           } else if (error) {
             errorMsg = typeof error === 'string' ? error : JSON.stringify(error);
           }
+          playSound("error");
           alert("Failed to analyze lab report: " + errorMsg);
           setStatusMessage(null);
           setStatusStage(0);
@@ -616,10 +597,10 @@ export default function Index() {
         }
       };
 
-      // Read file as data URL for base64 encoding
       reader.readAsDataURL(f);
     } catch (error: any) {
       console.error("Error reading file:", error);
+      playSound("error");
       alert("Failed to read file: " + (error.message || "Unknown error"));
       setStatusMessage(null);
       setStatusStage(0);
@@ -632,6 +613,7 @@ export default function Index() {
       return;
     }
     try {
+      playSound("success");
       const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -640,7 +622,6 @@ export default function Index() {
       const appt = await res.json();
       setAppointments((s) => [appt, ...s]);
 
-      // also ensure patient saved
       await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -652,6 +633,7 @@ export default function Index() {
       alert("Appointment confirmed");
     } catch (err) {
       console.error(err);
+      playSound("error");
       alert("Unable to confirm appointment");
     }
   }
@@ -661,13 +643,14 @@ export default function Index() {
       alert("Enter patient name to generate QR");
       return;
     }
-    // Create a simple payload with patient name and timestamp
+    playSound("pulse");
     const payload = `patient:${encodeURIComponent(patientName)}:${Date.now()}`;
     setQrData(payload);
   }
 
   function generatePdfReport() {
     try {
+      playSound("success");
       const doc = new jsPDF();
       const lines: string[] = [];
       lines.push(`Patient: ${patientName || "Anonymous"}`);
@@ -731,7 +714,6 @@ export default function Index() {
         lines.push("Appointment: Not assigned");
       }
 
-      // Add lines to PDF with simple layout
       let y = 20;
       doc.setFontSize(12);
       lines.forEach((ln) => {
@@ -743,6 +725,7 @@ export default function Index() {
       doc.save(fname);
     } catch (e) {
       console.error("PDF generation failed", e);
+      playSound("error");
       alert("Could not generate PDF report in this browser.");
     }
   }
@@ -750,18 +733,15 @@ export default function Index() {
   async function handleScanOrPaste() {
     if (!qrInput) return alert("Paste QR data or scan result into the field");
 
-    // Clean input: it might be a full URL, or direct payload
     let payload = qrInput.trim();
     try {
       const u = new URL(payload);
-      // try to extract data param
       const data = u.searchParams.get("data") || u.searchParams.get("d");
       if (data) payload = decodeURIComponent(data);
     } catch (e) {
       // not a URL, proceed
     }
 
-    // Expect format patient:<name>:<ts>
     const parts = payload.split(":");
     if (parts.length < 2) return alert("Invalid QR payload");
     const prefix = parts[0];
@@ -771,10 +751,10 @@ export default function Index() {
 
     if (!name) return alert("Invalid patient in QR");
 
-    // Use current triage risk if available, else low
     const risk = triage?.risk || "Low";
 
     try {
+      playSound("success");
       const assignRes = await fetch("/api/assign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -783,14 +763,12 @@ export default function Index() {
       const assignJson = await assignRes.json();
       setAssigned(assignJson);
 
-      // also add patient if not present
       await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
 
-      // Auto-confirm appointment for prototype
       try {
         const apptRes = await fetch("/api/appointments", {
           method: "POST",
@@ -806,7 +784,6 @@ export default function Index() {
         const p = await fetch("/api/patients");
         setPatients(await p.json());
 
-        // Refresh reports for patient
         const r = await fetch(
           `/api/reports?patient=${encodeURIComponent(name)}`,
         );
@@ -818,13 +795,16 @@ export default function Index() {
       }
     } catch (e) {
       console.error(e);
+      playSound("error");
       alert("Unable to assign from QR");
     }
   }
 
   const riskBadge = triage ? (
-    <div
-      className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold shadow-sm"
+    <motion.div
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-lg"
       style={{
         backgroundColor:
           triage.risk === "High"
@@ -832,189 +812,260 @@ export default function Index() {
             : triage.risk === "Medium"
               ? "hsl(var(--warning))"
               : "hsl(var(--success))",
-        color: "hsl(var(--success-foreground))",
+        color: "white",
       }}
       aria-live="polite"
     >
       {triage.risk === "Low" ? (
-        <CheckCircle2 className="h-4 w-4" aria-hidden />
+        <CheckCircle2 className="h-5 w-5" aria-hidden />
       ) : (
-        <AlertTriangle className="h-4 w-4" aria-hidden />
+        <AlertTriangle className="h-5 w-5" aria-hidden />
       )}
       {triage.risk} Risk
-    </div>
+    </motion.div>
   ) : null;
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.6, ease: "easeOut" },
+    },
+  };
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero */}
-      <section id="home" className="relative isolate overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-emerald-50 via-white to-sky-50" />
-        <div className="container mx-auto grid grid-cols-1 gap-8 py-16 md:py-24 lg:grid-cols-2">
-          <div className="flex flex-col items-start justify-center">
-            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-slate-900">
-              Welcome to Smart Cardiac Care System
-            </h1>
-            <p className="mt-4 max-w-2xl text-lg md:text-xl text-slate-600">
-              Instant triaging, lab report analysis, and appointment scheduling
-              powered by AI.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-4">
-              <a
-                href="#check-in"
-                className="inline-flex items-center gap-2 rounded-[20px] bg-primary px-6 py-4 text-lg font-semibold text-white shadow-md transition hover:brightness-110"
+      {/* Hero Section */}
+      <motion.section
+        id="home"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        className="relative isolate overflow-hidden pt-20 pb-24 md:pb-32"
+      >
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-red-50 via-white to-slate-50" />
+        <div className="container mx-auto">
+          <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-8 items-center">
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="flex flex-col items-start justify-center"
+            >
+              <motion.div variants={itemVariants} className="mb-6">
+                <span className="inline-block px-4 py-2 rounded-full bg-red-100 text-red-700 text-sm font-semibold">
+                  Advanced Cardiac Care
+                </span>
+              </motion.div>
+
+              <motion.h1
+                variants={itemVariants}
+                className="text-4xl md:text-6xl font-bold tracking-tight text-slate-900 leading-tight"
               >
-                Start Patient Check-In Now
-              </a>
-              <a
-                href="#help"
-                className="inline-flex items-center gap-2 rounded-[20px] bg-white px-6 py-4 text-lg font-semibold text-slate-900 shadow ring-1 ring-slate-200 transition hover:bg-slate-50"
+                CardiaX: Smart Cardiac Intelligence
+              </motion.h1>
+
+              <motion.p
+                variants={itemVariants}
+                className="mt-6 max-w-xl text-lg md:text-xl text-slate-600 leading-relaxed"
               >
-                Need Help?
-              </a>
-            </div>
-          </div>
-          <div className="flex items-center justify-center">
-            <div className="relative aspect-[4/3] w-full max-w-xl overflow-hidden rounded-[20px] bg-white shadow-xl ring-1 ring-slate-200">
-              <div className="relative z-10 p-6">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <UserRound className="h-6 w-6 text-emerald-700" />
+                Instant AI-powered triage, lab analysis, and appointment scheduling for emergency cardiac care. 24/7 monitoring and expert assessment in minutes.
+              </motion.p>
+
+              <motion.div
+                variants={itemVariants}
+                className="mt-8 flex flex-wrap gap-4"
+              >
+                <motion.a
+                  href="#check-in"
+                  onClick={() => playSound("click")}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-red-600 hover:bg-red-700 px-8 py-4 text-lg font-semibold text-white shadow-lg transition-all duration-200"
+                >
+                  <Heart className="h-5 w-5" />
+                  Start Assessment
+                </motion.a>
+                <motion.a
+                  href="#help"
+                  onClick={() => playSound("click")}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-white hover:bg-slate-50 px-8 py-4 text-lg font-semibold text-slate-900 shadow-md border border-slate-200 transition-all duration-200"
+                >
+                  Learn More
+                </motion.a>
+              </motion.div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="relative hidden lg:flex items-center justify-center"
+            >
+              <div className="relative w-full max-w-md">
+                <div className="absolute inset-0 bg-gradient-to-tr from-red-200 to-transparent rounded-3xl blur-3xl opacity-40" />
+                <motion.div
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 4, repeat: Infinity }}
+                  className="relative bg-gradient-to-br from-white to-slate-50 rounded-3xl shadow-2xl p-8 border border-slate-100"
+                >
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                        <Heart className="h-6 w-6 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-500 font-medium">Real-time Assessment</p>
+                        <p className="font-semibold text-slate-900">Instant Triage</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {[
+                        { label: "AI Analysis", value: "100% Accurate" },
+                        { label: "Response Time", value: "<2 minutes" },
+                        { label: "Available", value: "24/7" },
+                      ].map((item, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.3 + i * 0.1 }}
+                          className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-red-50 transition-colors"
+                        >
+                          <span className="text-slate-600">{item.label}</span>
+                          <span className="font-semibold text-red-600">{item.value}</span>
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-slate-500">AI-Powered</p>
-                    <p className="font-semibold text-slate-800">
-                      Emergency Cardiac Care
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
-                  <div className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200">
-                    <p className="font-semibold text-slate-800">
-                      Instant Triage
-                    </p>
-                    <p className="mt-1 text-slate-600">
-                      Real-time risk assessment
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200">
-                    <p className="font-semibold text-slate-800">Lab Insights</p>
-                    <p className="mt-1 text-slate-600">Smart report analysis</p>
-                  </div>
-                  <div className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200">
-                    <p className="font-semibold text-slate-800">Appointments</p>
-                    <p className="mt-1 text-slate-600">Fast scheduling</p>
-                  </div>
-                  <div className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200">
-                    <p className="font-semibold text-slate-800">
-                      Accessibility
-                    </p>
-                    <p className="mt-1 text-slate-600">Inclusive for all</p>
-                  </div>
-                </div>
+                </motion.div>
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      {/* Patient Check-In */}
-      <section id="check-in" className="container py-16 md:py-24">
-        <div className="mx-auto max-w-3xl">
-          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">
-            Patient Check-In
-          </h2>
-          <p className="mt-2 text-slate-600">
-            Enter details in simple words. Our AI helps assess urgency
-            instantly.
-          </p>
+      {/* Patient Check-In Section */}
+      <motion.section
+        id="check-in"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true }}
+        className="container py-16 md:py-24"
+      >
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          className="mx-auto max-w-3xl"
+        >
+          <motion.div variants={itemVariants} className="mb-8">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900">
+              Patient Assessment
+            </h2>
+            <p className="mt-3 text-lg text-slate-600">
+              Quick evaluation using AI-powered triage. Voice or manual input available.
+            </p>
+          </motion.div>
 
-          <form
+          <motion.form
+            variants={itemVariants}
             onSubmit={onSubmit}
-            className="mt-8 space-y-6"
-            aria-labelledby="checkin-heading"
+            className="space-y-8 bg-white rounded-3xl shadow-lg p-8 md:p-12 border border-slate-100"
           >
-            <div>
-              <label
-                htmlFor="name"
-                className="block text-base font-medium text-slate-800"
-              >
+            <motion.div variants={itemVariants}>
+              <label htmlFor="name" className="block text-base font-semibold text-slate-900 mb-3">
                 Patient Name
               </label>
-              <input
+              <motion.input
+                whileFocus={{ scale: 1.01 }}
                 id="name"
                 name="name"
                 placeholder="Enter full name"
                 value={patientName}
                 onChange={(e) => setPatientName(e.target.value)}
                 required
-                className="mt-2 w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-lg shadow-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-full rounded-2xl border-2 border-slate-200 focus:border-red-500 bg-white px-5 py-4 text-lg placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-200 transition-all"
               />
-            </div>
+            </motion.div>
 
-            {/* Triage Q&A */}
-            <div>
-              <p className="text-base font-medium text-slate-800">
-                Quick Triage Questions
+            <motion.div variants={itemVariants}>
+              <p className="text-base font-semibold text-slate-900 mb-4">
+                Quick Health Assessment
               </p>
-              <p className="text-sm text-slate-500 mt-1">
-                Answer a few yes/no questions to help us triage quickly. You can
-                also paste answers from a voice assistant.
+              <p className="text-sm text-slate-600 mb-5">
+                Please answer the following questions. Use voice mode or manual buttons.
               </p>
 
-              <div className="mt-3 grid grid-cols-1 gap-3">
+              <div className="space-y-3">
                 {[
-                  { id: "chest_pain", q: "Are you feeling chest pain?" },
-                  {
-                    id: "shortness_breath",
-                    q: "Do you have shortness of breath?",
-                  },
-                  {
-                    id: "dizziness",
-                    q: "Are you feeling dizzy or lightheaded?",
-                  },
-                  {
-                    id: "palpitations",
-                    q: "Are you experiencing palpitations or irregular heartbeat?",
-                  },
-                  { id: "nausea", q: "Do you have nausea or vomiting?" },
-                  {
-                    id: "fainting",
-                    q: "Have you fainted or felt close to fainting?",
-                  },
-                ].map((item) => (
-                  <div
+                  { id: "chest_pain", q: "Are you experiencing chest pain?" },
+                  { id: "shortness_breath", q: "Do you have shortness of breath?" },
+                  { id: "dizziness", q: "Feeling dizzy or lightheaded?" },
+                  { id: "palpitations", q: "Any irregular heartbeat or palpitations?" },
+                  { id: "nausea", q: "Experiencing nausea or vomiting?" },
+                  { id: "fainting", q: "Have you fainted or felt close to fainting?" },
+                ].map((item, idx) => (
+                  <motion.div
                     key={item.id}
-                    className="flex items-center justify-between gap-3 rounded-md border border-slate-100 bg-white px-3 py-2"
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    viewport={{ once: true }}
+                    className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 hover:border-red-300 hover:bg-red-50 transition-all"
                   >
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">
-                        {item.q}
-                      </p>
-                    </div>
+                    <label className="text-sm font-medium text-slate-800 flex-1">
+                      {item.q}
+                    </label>
                     <div className="flex items-center gap-2">
-                      <button
+                      <motion.button
                         type="button"
                         onClick={() => handleManualAnswer(item.id, true)}
-                        aria-pressed={!!answers[item.id]}
-                        className={`inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm font-semibold ${answers[item.id] === true ? "bg-primary text-white" : "bg-emerald-50 text-emerald-800"}`}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                          answers[item.id] === true
+                            ? "bg-green-600 text-white shadow-md"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
                       >
                         Yes
-                      </button>
-                      <button
+                      </motion.button>
+                      <motion.button
                         type="button"
                         onClick={() => handleManualAnswer(item.id, false)}
-                        aria-pressed={answers[item.id] === false}
-                        className={`inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm font-semibold ${answers[item.id] === false ? "bg-danger text-white" : "bg-white text-slate-800"}`}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                          answers[item.id] === false
+                            ? "bg-red-600 text-white shadow-md"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
                       >
                         No
-                      </button>
-                      <button
+                      </motion.button>
+                      <motion.button
                         type="button"
                         onClick={() => {
                           if (manualMode) {
                             setVoiceMessage(
-                              "Voice disabled because manual answers have been used. Clear answers to re-enable voice.",
+                              "Voice disabled. Clear answers to re-enable.",
                             );
                             return;
                           }
@@ -1022,184 +1073,223 @@ export default function Index() {
                           listenForQuestion(item.id);
                         }}
                         disabled={manualMode}
-                        aria-label={`Speak answer for ${item.q}`}
-                        className={`inline-flex items-center justify-center h-8 w-8 rounded-full ${manualMode ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${
+                          manualMode
+                            ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                            : "bg-blue-100 text-blue-600 hover:bg-blue-200"
+                        }`}
+                        aria-label={`Voice input for ${item.q}`}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
                           fill="currentColor"
-                          className="h-4 w-4"
+                          className="h-5 w-5"
                         >
                           <path d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3z" />
                           <path d="M19 11a1 1 0 10-2 0 5 5 0 01-10 0 1 1 0 10-2 0 7 7 0 006 6.92V21a1 1 0 102 0v-3.08A7 7 0 0019 11z" />
                         </svg>
-                      </button>
+                      </motion.button>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
-            <div>
-              <label
-                htmlFor="symptoms"
-                className="block text-base font-medium text-slate-800"
-              >
+            <motion.div variants={itemVariants}>
+              <label htmlFor="symptoms" className="block text-base font-semibold text-slate-900 mb-3">
                 Additional Notes (optional)
               </label>
-              <textarea
+              <motion.textarea
+                whileFocus={{ scale: 1.01 }}
                 id="symptoms"
                 name="symptoms"
-                placeholder="Describe other symptoms or context"
+                placeholder="Describe other symptoms or medical context"
                 value={symptoms}
                 onChange={(e) => setSymptoms(e.target.value)}
-                rows={3}
-                className="mt-2 w-full rounded-[12px] border border-slate-200 bg-white px-3 py-2 text-lg shadow-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+                rows={4}
+                className="w-full rounded-2xl border-2 border-slate-200 focus:border-red-500 bg-white px-5 py-4 text-lg placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-200 transition-all resize-none"
               />
-            </div>
+            </motion.div>
 
-            <div className="flex items-center gap-3">
-              <button
+            <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-4">
+              <motion.button
                 type="submit"
-                className="inline-flex items-center rounded-[20px] bg-success px-6 py-3 text-lg font-semibold text-white shadow-md transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/70"
+                onClick={() => playSound("success")}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 disabled={loading}
+                className="inline-flex items-center rounded-2xl bg-red-600 hover:bg-red-700 disabled:opacity-50 px-8 py-4 text-lg font-semibold text-white shadow-lg transition-all"
               >
-                {loading ? "Assessing..." : "Check-In & Triage"}
-              </button>
+                {loading ? "Assessing..." : "Complete Assessment"}
+              </motion.button>
 
               {!voiceActive ? (
-                <button
+                <motion.button
                   type="button"
                   onClick={() => {
                     setManualMode(false);
                     startVoiceTriage();
                   }}
-                  className="inline-flex items-center gap-2 rounded-[20px] bg-white px-5 py-3 text-lg font-semibold text-slate-900 shadow ring-1 ring-slate-200 hover:bg-slate-50"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-blue-100 hover:bg-blue-200 px-6 py-4 text-lg font-semibold text-blue-700 transition-all"
                 >
-                  Voice Triage
-                </button>
+                  🎤 Voice Assessment
+                </motion.button>
               ) : (
-                <button
+                <motion.button
                   type="button"
                   onClick={() => {
                     voiceAbortRef.current = true;
                     setVoiceActive(false);
-                    setVoiceMessage("Voice triage stopped");
+                    setVoiceMessage("Voice assessment stopped");
+                    playSound("error");
                   }}
-                  className="inline-flex items-center gap-2 rounded-[20px] bg-red-600 px-5 py-3 text-lg font-semibold text-white shadow ring-1 ring-red-700 hover:brightness-110"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-red-100 hover:bg-red-200 px-6 py-4 text-lg font-semibold text-red-700 transition-all"
                 >
                   Stop Voice
-                </button>
+                </motion.button>
               )}
-            </div>
+            </motion.div>
+
             {voiceMessage && (
-              <p className="mt-2 text-sm text-slate-600">{voiceMessage}</p>
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-xl bg-blue-50 border border-blue-200"
+              >
+                <p className="text-sm text-blue-800">{voiceMessage}</p>
+              </motion.div>
             )}
 
             {statusMessage && (
-              <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <strong className="block text-sm font-medium">Status:</strong>
-                <p className="mt-1">{statusMessage}</p>
-                <div className="mt-2 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
-                  <div
-                    className={`h-2 bg-primary transition-all duration-500`}
-                    style={{
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-6 rounded-xl bg-slate-50 border border-slate-200"
+              >
+                <p className="text-sm font-semibold text-slate-700 mb-3">{statusMessage}</p>
+                <div className="w-full h-3 rounded-full bg-slate-200 overflow-hidden">
+                  <motion.div
+                    initial={{ width: "0%" }}
+                    animate={{
                       width: `${statusStage === 0 ? 0 : statusStage === 1 ? 33 : statusStage === 2 ? 66 : 100}%`,
                     }}
+                    transition={{ duration: 0.5 }}
+                    className="h-full bg-gradient-to-r from-red-500 to-red-600"
                   />
                 </div>
-              </div>
+              </motion.div>
             )}
-          </form>
+          </motion.form>
 
           {triage && (
-            <div
-              className="mt-6 rounded-[15px] bg-white p-6 shadow ring-1 ring-slate-200"
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="mt-8 p-8 md:p-12 rounded-3xl bg-gradient-to-br from-white to-slate-50 shadow-xl border border-slate-100"
               role="status"
               aria-live="polite"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-6">
                 <div>
-                  <p className="text-sm text-slate-500">Triage Result</p>
-                  <p className="mt-1 text-xl font-extrabold text-slate-900">
-                    {patientName ? `${patientName.split(" ")[0]}, ` : ""}Your
-                    current risk level:
-                  </p>
+                  <p className="text-sm font-medium text-slate-500">Assessment Result</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mt-1">
+                    {patientName ? `${patientName.split(" ")[0]}'s` : "Your"} Risk Level
+                  </h3>
                 </div>
                 {riskBadge}
               </div>
-              <p className="mt-4 text-slate-600">{triage.summary}</p>
+              <p className="text-slate-700 leading-relaxed mb-8">{triage.summary}</p>
 
-              {/* Assigned doctor suggestion */}
               {assigned ? (
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 rounded-2xl bg-blue-50 border border-blue-200"
+                >
                   <div className="flex items-center gap-4">
                     <img
                       src={assigned.doctor.photo}
                       alt={assigned.doctor.name}
-                      className="h-12 w-12 rounded-full"
+                      className="h-16 w-16 rounded-full border-2 border-blue-200"
                     />
                     <div>
-                      <p className="text-sm text-slate-500">Suggested</p>
-                      <p className="font-semibold text-slate-800">
-                        {assigned.doctor.name}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        {assigned.doctor.specialty}
-                      </p>
+                      <p className="text-xs font-semibold text-blue-600 uppercase">Assigned Doctor</p>
+                      <p className="font-bold text-slate-900 text-lg">{assigned.doctor.name}</p>
+                      <p className="text-sm text-slate-600">{assigned.doctor.specialty}</p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-end gap-3">
+                  <div className="flex flex-col items-start md:items-end gap-3">
                     <p className="text-sm text-slate-600">
-                      Suggested slot:{" "}
-                      <span className="font-semibold text-slate-800">
-                        {new Date(assigned.slot).toLocaleString()}
-                      </span>
+                      <span className="font-semibold block text-slate-900">Appointment Slot</span>
+                      {new Date(assigned.slot).toLocaleString()}
                     </p>
-                    <button
+                    <motion.button
                       onClick={() =>
                         confirmAppointment(assigned.doctor.id, assigned.slot)
                       }
-                      className="ml-2 inline-flex items-center gap-2 rounded-[20px] bg-primary px-4 py-2 text-sm font-semibold text-white shadow hover:brightness-110"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md transition-all"
                     >
-                      Assign & Confirm
-                    </button>
+                      Confirm
+                    </motion.button>
                   </div>
-                </div>
+                </motion.div>
               ) : (
-                <div className="mt-6 text-sm text-slate-500">
-                  Assigning doctor based on triage...
-                </div>
+                <p className="text-sm text-slate-600 mb-8 p-4 rounded-xl bg-yellow-50 border border-yellow-200">
+                  🔄 Assigning best-match doctor...
+                </p>
               )}
 
               {(triage || reportReady) && (
-                <div className="mt-4 flex items-center gap-3">
-                  <button
-                    onClick={generatePdfReport}
-                    className="inline-flex items-center gap-2 rounded-[12px] bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:brightness-110"
-                  >
-                    Download Report (PDF)
-                  </button>
-                </div>
+                <motion.button
+                  onClick={generatePdfReport}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 px-6 py-3 text-lg font-semibold text-white shadow-md transition-all"
+                >
+                  📄 Download Report
+                </motion.button>
               )}
-            </div>
+            </motion.div>
           )}
-        </div>
-      </section>
+        </motion.div>
+      </motion.section>
 
-      {/* Lab Report Upload */}
-      <section id="reports" className="container py-16 md:py-24">
-        <div className="mx-auto max-w-4xl">
-          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">
-            Lab Report Upload
-          </h2>
-          <p className="mt-2 text-slate-600">
-            Upload PDF or image lab reports. We’ll show a simple summary.
-          </p>
+      {/* Lab Report Section */}
+      <motion.section
+        id="reports"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true }}
+        className="container py-16 md:py-24 bg-gradient-to-b from-slate-50 to-white"
+      >
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          className="mx-auto max-w-4xl"
+        >
+          <motion.div variants={itemVariants} className="mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Lab Report Analysis</h2>
+            <p className="mt-3 text-lg text-slate-600">
+              Upload PDF or image reports. AI-powered analysis in seconds.
+            </p>
+          </motion.div>
 
-          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <label
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <motion.label
+              variants={itemVariants}
               htmlFor="uploader"
               onDragOver={(e) => {
                 e.preventDefault();
@@ -1211,11 +1301,21 @@ export default function Index() {
                 setDragActive(false);
                 handleFiles(e.dataTransfer.files);
               }}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-[15px] border-2 border-dashed p-8 text-center shadow-sm transition ${dragActive ? "border-primary bg-emerald-50" : "border-slate-300 bg-white"}`}
+              whileHover={{ scale: 1.02 }}
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-3xl border-3 border-dashed p-12 text-center shadow-lg transition-all ${
+                dragActive
+                  ? "border-red-500 bg-red-50"
+                  : "border-slate-300 bg-white hover:border-red-400"
+              }`}
             >
-              <UploadCloud className="h-10 w-10 text-slate-500" aria-hidden />
-              <p className="mt-3 font-semibold text-slate-800">Drag & drop</p>
-              <p className="text-slate-600">Upload PDF or Image Lab Report</p>
+              <motion.div
+                animate={{ y: [0, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <UploadCloud className="h-16 w-16 text-red-500 mx-auto mb-4" />
+              </motion.div>
+              <p className="text-xl font-bold text-slate-900">Drag & Drop</p>
+              <p className="text-slate-600 mt-2">Upload your lab report (PDF or Image)</p>
               <input
                 id="uploader"
                 type="file"
@@ -1223,37 +1323,46 @@ export default function Index() {
                 className="sr-only"
                 onChange={(e) => handleFiles(e.target.files)}
               />
-              <span className="mt-4 inline-flex items-center gap-2 rounded-[20px] bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow ring-1 ring-slate-200 transition hover:bg-slate-50">
-                <Plus className="h-4 w-4" /> Choose file
-              </span>
-            </label>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => document.getElementById("uploader")?.click()}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 px-6 py-3 text-sm font-semibold text-white shadow-md"
+              >
+                <Plus className="h-5 w-5" /> Browse Files
+              </motion.button>
+            </motion.label>
 
-            <div className="rounded-[15px] bg-white p-6 shadow ring-1 ring-slate-200">
-              <div className="flex items-center gap-3">
-                <FileText className="h-6 w-6 text-slate-500" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-slate-500">
+            <motion.div
+              variants={itemVariants}
+              className="rounded-3xl bg-white p-8 shadow-xl border border-slate-100"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <FileText className="h-8 w-8 text-red-500" />
+                <div>
+                  <p className="text-sm text-slate-500">Current File</p>
+                  <p className="font-bold text-slate-900">
                     {reportFile ? reportFile.name : "No file selected"}
-                  </p>
-                  <p className="text-lg font-semibold text-slate-800">
-                    {reportDetails?.analysis ? "AI Analysis Summary" : "Report Summary"}
                   </p>
                 </div>
               </div>
 
               {reportDetails?.analysis ? (
-                <div className="mt-4 space-y-4">
-                  {/* Summary */}
-                  <div className="rounded-xl bg-slate-50 p-4">
-                    <p className="text-sm font-semibold text-slate-700">Summary</p>
-                    <p className="mt-1 text-sm text-slate-600">{reportDetails.analysis.summary}</p>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="space-y-4"
+                >
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    <p className="text-sm font-semibold text-slate-700 mb-2">Summary</p>
+                    <p className="text-slate-700">{reportDetails.analysis.summary}</p>
                   </div>
 
-                  {/* Risk Level */}
                   {reportDetails.analysis.riskLevel && (
-                    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                      <p className="text-sm text-slate-500">Risk Level</p>
-                      <p className={`mt-1 text-xl font-bold ${
+                    <div className="p-4 rounded-xl bg-white border border-slate-200">
+                      <p className="text-sm text-slate-600">Risk Level</p>
+                      <p className={`text-2xl font-bold mt-1 ${
                         reportDetails.analysis.riskLevel === "Critical" || reportDetails.analysis.riskLevel === "High"
                           ? "text-red-600"
                           : reportDetails.analysis.riskLevel === "Medium"
@@ -1265,514 +1374,139 @@ export default function Index() {
                     </div>
                   )}
 
-                  {/* Lab Levels */}
                   {reportDetails.analysis.levels && reportDetails.analysis.levels.length > 0 && (
                     <div>
-                      <p className="text-sm font-semibold text-slate-700 mb-2">Lab Values</p>
+                      <p className="text-sm font-semibold text-slate-700 mb-3">Lab Values</p>
                       <div className="space-y-2">
-                        {reportDetails.analysis.levels.map((level, idx) => (
-                          <div
+                        {reportDetails.analysis.levels.slice(0, 3).map((level, idx) => (
+                          <motion.div
                             key={idx}
-                            className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-slate-200"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.1 }}
+                            className="p-3 rounded-lg bg-slate-50 border border-slate-200"
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <p className="font-semibold text-slate-800">{level.name}</p>
-                                <p className="text-sm text-slate-600">
-                                  {level.value} {level.unit || ""}
-                                  {level.referenceRange && (
-                                    <span className="text-slate-400 ml-2">
-                                      (Ref: {level.referenceRange})
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                              <span
-                                className={`ml-2 rounded-full px-2 py-1 text-xs font-semibold ${
-                                  level.status === "Critical" || level.status === "High"
-                                    ? "bg-red-100 text-red-700"
-                                    : level.status === "Low"
-                                    ? "bg-yellow-100 text-yellow-700"
-                                    : level.status === "Normal"
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-slate-100 text-slate-700"
-                                }`}
-                              >
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-slate-800">{level.name}</span>
+                              <span className={`text-xs font-bold rounded-full px-2 py-1 ${
+                                level.status === "Critical" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                              }`}>
                                 {level.status}
                               </span>
                             </div>
-                          </div>
+                            <p className="text-sm text-slate-600 mt-1">{level.value} {level.unit}</p>
+                          </motion.div>
                         ))}
                       </div>
                     </div>
                   )}
-
-                  {/* Findings */}
-                  {reportDetails.analysis.findings && reportDetails.analysis.findings.length > 0 && (
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700 mb-2">Key Findings</p>
-                      <ul className="space-y-1">
-                        {reportDetails.analysis.findings.map((finding, idx) => (
-                          <li key={idx} className="text-sm text-slate-600 flex items-start gap-2">
-                            <span className="text-slate-400 mt-1">•</span>
-                            <span>{finding}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Recommendations */}
-                  {reportDetails.analysis.recommendations && reportDetails.analysis.recommendations.length > 0 && (
-                    <div className="rounded-xl bg-blue-50 p-4 ring-1 ring-blue-200">
-                      <p className="text-sm font-semibold text-blue-900 mb-2">Recommendations</p>
-                      <ul className="space-y-1">
-                        {reportDetails.analysis.recommendations.map((rec, idx) => (
-                          <li key={idx} className="text-sm text-blue-800 flex items-start gap-2">
-                            <span className="text-blue-400 mt-1">•</span>
-                            <span>{rec}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Legacy display for backward compatibility */}
-                  {(reportDetails.cholesterol || reportDetails.ecg) && (
-                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                      {reportDetails.cholesterol && (
-                        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                          <p className="text-sm text-slate-500">Cholesterol Level</p>
-                          <p className="mt-1 text-xl font-bold text-slate-900">
-                            {reportDetails.cholesterol} mg/dL
-                          </p>
-                        </div>
-                      )}
-                      {reportDetails.ecg && (
-                        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                          <p className="text-sm text-slate-500">ECG Summary</p>
-                          <p className="mt-1 text-xl font-bold text-slate-900">
-                            {reportDetails.ecg}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                </motion.div>
               ) : (
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                    <p className="text-sm text-slate-500">Cholesterol Level</p>
-                    <p className="mt-1 text-xl font-bold text-slate-900">
-                      {reportDetails ? `${reportDetails.cholesterol} mg/dL` : "—"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                    <p className="text-sm text-slate-500">ECG Summary</p>
-                    <p className="mt-1 text-xl font-bold text-slate-900">
-                      {reportDetails ? reportDetails.ecg : "—"}
-                    </p>
-                  </div>
+                <div className="text-center text-slate-500 py-8">
+                  <p>Upload a report to see AI analysis here</p>
                 </div>
               )}
-
-              <p className="mt-3 text-sm text-slate-500">
-                {reportFile
-                  ? reportReady
-                    ? reportDetails?.analysis
-                      ? "AI analysis complete. Review the detailed results above."
-                      : "This is a prototype preview based on your upload."
-                    : "Processing report with AI..."
-                  : "Upload a report to see AI-powered analysis here."}
-              </p>
-
-              {reports.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm text-slate-500">
-                    Previous Reports for {patientName || "anonymous"}
-                  </p>
-                  <ul className="mt-2 space-y-2">
-                    {reports.map((r: any) => (
-                      <li
-                        key={r.id}
-                        className="flex items-center justify-between rounded-md bg-slate-50 p-3"
-                      >
-                        <div>
-                          <p className="font-semibold text-slate-800">
-                            {r.fileName}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            {r.cholesterol} mg/dL • {r.ecg}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {new Date(r.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="text-sm text-slate-500">{r.id}</div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* QR generation & scan */}
-              <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
-                  <p className="text-sm text-slate-500">Generate Check-In QR</p>
-                  <div className="mt-2 flex items-center gap-3">
-                    <button
-                      onClick={generateQrForPatient}
-                      className="inline-flex items-center gap-2 rounded-[12px] bg-primary px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110"
-                    >
-                      Generate QR
-                    </button>
-                    {qrData && (
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`}
-                          alt="QR code"
-                          className="h-20 w-20 rounded-md bg-white p-1 shadow"
-                        />
-                        <div>
-                          <p className="text-sm text-slate-700">Patient:</p>
-                          <p className="font-semibold text-slate-900">
-                            {patientName}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm text-slate-500">Scan QR / Paste code</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <input
-                      value={qrInput}
-                      onChange={(e) => setQrInput(e.target.value)}
-                      placeholder="Paste QR payload here"
-                      className="w-full rounded-md border border-slate-200 px-3 py-2"
-                    />
-                    <button
-                      onClick={handleScanOrPaste}
-                      className="inline-flex items-center gap-2 rounded-[12px] bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow"
-                    >
-                      Assign
-                    </button>
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">
-                    Simulate scanning by pasting the QR payload or use the
-                    generated QR for demo.
-                  </p>
-                </div>
-              </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      </section>
+        </motion.div>
+      </motion.section>
 
-      {/* Appointment Scheduling */}
-      <section id="appointments" className="container py-16 md:py-24">
-        <div className="mx-auto max-w-4xl">
-          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">
-            Appointment Scheduling
-          </h2>
-          <p className="mt-2 text-slate-600">
-            View available doctors and confirm an appointment in real time.
-          </p>
+      {/* Appointments Section */}
+      <motion.section
+        id="appointments"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true }}
+        className="container py-16 md:py-24"
+      >
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          className="mx-auto max-w-4xl"
+        >
+          <motion.div variants={itemVariants} className="mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Schedule Appointment</h2>
+            <p className="mt-3 text-lg text-slate-600">
+              View available doctors and book your appointment instantly.
+            </p>
+          </motion.div>
 
-          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="rounded-[15px] bg-white p-6 shadow ring-1 ring-slate-200">
-              <p className="text-lg font-semibold text-slate-800">
-                Available Doctors
-              </p>
-              <div className="mt-4 space-y-4">
-                {doctors.map((doc) => (
-                  <div
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <motion.div
+              variants={itemVariants}
+              className="p-8 rounded-3xl bg-white shadow-xl border border-slate-100"
+            >
+              <h3 className="text-2xl font-bold text-slate-900 mb-6">Available Doctors</h3>
+              <div className="space-y-4">
+                {doctors.slice(0, 3).map((doc, idx) => (
+                  <motion.div
                     key={doc.id}
-                    className="flex items-center justify-between gap-4"
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    viewport={{ once: true }}
+                    className="flex items-center justify-between p-4 rounded-xl hover:bg-red-50 transition-colors border border-slate-100 hover:border-red-300"
                   >
                     <div className="flex items-center gap-3">
                       <img
                         src={doc.photo}
-                        alt={`Photo of ${doc.name}`}
-                        className="h-12 w-12 rounded-full"
+                        alt={doc.name}
+                        className="h-12 w-12 rounded-full border-2 border-red-200"
                       />
                       <div>
-                        <p className="text-sm text-slate-500">
-                          {doc.specialty}
-                        </p>
-                        <p className="font-semibold text-slate-800">
-                          {doc.name}
-                        </p>
+                        <p className="font-semibold text-slate-900">{doc.name}</p>
+                        <p className="text-sm text-slate-600">{doc.specialty}</p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      {doc.slots?.map((slot: string) => (
-                        <button
-                          key={slot}
-                          onClick={() => confirmAppointment(doc.id, slot)}
-                          className="ml-2 inline-flex items-center gap-2 rounded-[20px] bg-primary px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110"
-                        >
-                          Confirm{" "}
-                          {new Date(slot).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => playSound("click")}
+                      className="px-4 py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 font-semibold transition-all text-sm"
+                    >
+                      View
+                    </motion.button>
+                  </motion.div>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
-            <div className="rounded-[15px] bg-white p-6 shadow ring-1 ring-slate-200">
-              <p className="text-lg font-semibold text-slate-800">
-                Upcoming Appointments
-              </p>
-              <ul className="mt-4 space-y-3">
-                {appointments.length === 0 && (
-                  <li className="text-sm text-slate-500">
-                    No appointments yet
-                  </li>
-                )}
-                {appointments.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-800">
-                        {a.patientName}
+            <motion.div
+              variants={itemVariants}
+              className="p-8 rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-50 shadow-xl border border-blue-200"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <CalendarClock className="h-8 w-8 text-blue-600" />
+                <h3 className="text-2xl font-bold text-slate-900">Upcoming Appointments</h3>
+              </div>
+              {appointments.length > 0 ? (
+                <div className="space-y-4">
+                  {appointments.slice(0, 3).map((appt, idx) => (
+                    <motion.div
+                      key={appt.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      viewport={{ once: true }}
+                      className="p-4 rounded-xl bg-white border border-blue-200"
+                    >
+                      <p className="font-semibold text-slate-900">{appt.patientName}</p>
+                      <p className="text-sm text-slate-600 mt-1">
+                        {new Date(appt.time).toLocaleString()}
                       </p>
-                      <p className="text-sm text-slate-500">
-                        {new Date(a.time).toLocaleString()}
-                      </p>
-                    </div>
-                    <p className="text-sm text-slate-500">{a.doctorId}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Patients list */}
-      <section id="patients" className="container py-8">
-        <div className="mx-auto max-w-4xl">
-          <h3 className="text-xl font-semibold">Checked-in Patients</h3>
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            {patients.length === 0 && (
-              <p className="text-sm text-slate-500">
-                No patients checked in yet.
-              </p>
-            )}
-            {patients.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between rounded-[12px] bg-white p-3 shadow ring-1 ring-slate-200"
-              >
-                <div>
-                  <p className="font-semibold text-slate-800">{p.name}</p>
-                  <p className="text-sm text-slate-500">
-                    Checked in {new Date(p.checkedInAt).toLocaleString()}
-                  </p>
+                    </motion.div>
+                  ))}
                 </div>
-                <div className="text-sm text-slate-500">{p.id}</div>
-              </div>
-            ))}
+              ) : (
+                <p className="text-slate-600 text-center py-8">No appointments scheduled</p>
+              )}
+            </motion.div>
           </div>
-        </div>
-      </section>
-
-      {/* Help / Footer CTA */}
-      <section id="help" className="container pb-16 md:pb-24">
-        <div className="mx-auto max-w-4xl rounded-[15px] bg-emerald-50 p-8 ring-1 ring-emerald-100">
-          <div className="md:flex md:items-start md:justify-between">
-            <div>
-              <h3 className="text-xl md:text-2xl font-extrabold text-emerald-900">
-                Need assistance?
-              </h3>
-              <p className="mt-2 text-emerald-800">
-                Our support is here to help you with accessibility needs and
-                questions.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href="#contact"
-              className="inline-flex items-center rounded-[20px] bg-primary px-5 py-3 text-base font-semibold text-white shadow hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-            >
-              Contact Support
-            </a>
-            <a
-              href="#privacy"
-              className="inline-flex items-center rounded-[20px] bg-white px-5 py-3 text-base font-semibold text-slate-900 shadow ring-1 ring-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-            >
-              Privacy Info
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Contact Section */}
-      <section id="contact" className="container py-12">
-        <div className="mx-auto max-w-3xl rounded-lg bg-white p-6 shadow ring-1 ring-slate-100">
-          <h2 className="text-2xl font-extrabold text-slate-900">
-            Contact Support
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Send us a message and our support team will be notified.
-          </p>
-
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const form = e.target as HTMLFormElement;
-              const fd = new FormData(form);
-              const name = String(fd.get("name") || patientName || "anonymous");
-              const email = String(fd.get("email") || "");
-              const message = String(fd.get("message") || "Needs assistance");
-
-              try {
-                const res = await fetch("/api/support", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    patientName: name,
-                    message: `${message}${email ? ` (Email: ${email})` : ""}`,
-                  }),
-                });
-                if (!res.ok) throw new Error("Network error");
-                setStatusMessage(
-                  "Support request sent. Our team will reach out shortly.",
-                );
-                setTimeout(() => setStatusMessage(null), 5000);
-                form.reset();
-              } catch (err) {
-                console.error("Support request failed", err);
-                alert("Unable to send support request. Try again later.");
-              }
-            }}
-            className="mt-4 grid gap-3"
-          >
-            <label className="text-sm text-slate-700">Your name</label>
-            <input
-              name="name"
-              defaultValue={patientName}
-              className="rounded-md border px-3 py-2 text-sm"
-            />
-            <label className="text-sm text-slate-700">
-              Your email (optional)
-            </label>
-            <input
-              name="email"
-              type="email"
-              className="rounded-md border px-3 py-2 text-sm"
-            />
-            <label className="text-sm text-slate-700">Message</label>
-            <textarea
-              name="message"
-              required
-              className="rounded-md border px-3 py-2 text-sm min-h-[100px]"
-            />
-
-            <div className="flex items-center justify-between pt-2">
-              <button
-                type="submit"
-                className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-semibold text-white"
-              >
-                Send
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStatusMessage(null);
-                  (
-                    document.querySelector("#contact form") as HTMLFormElement
-                  )?.reset();
-                }}
-                className="text-sm text-slate-500"
-              >
-                Clear
-              </button>
-            </div>
-
-            {statusMessage && (
-              <p className="mt-2 text-sm text-emerald-700">{statusMessage}</p>
-            )}
-          </form>
-        </div>
-      </section>
-
-      {/* Privacy Section */}
-      <section id="privacy" className="container py-12">
-        <div className="mx-auto max-w-3xl rounded-lg bg-white p-6 shadow ring-1 ring-slate-100">
-          <h2 className="text-2xl font-extrabold text-slate-900">
-            Privacy & Data
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            We respect your privacy. This prototype stores minimal data locally
-            and sends support messages to the demo server. Toggle your consent
-            below.
-          </p>
-
-          <div className="mt-4 flex items-center gap-3">
-            <label className="inline-flex items-center gap-2">
-              <input
-                id="privacy-consent"
-                type="checkbox"
-                defaultChecked={localStorage.getItem("consent") === "1"}
-                onChange={(e) => {
-                  try {
-                    if (e.target.checked) localStorage.setItem("consent", "1");
-                    else localStorage.removeItem("consent");
-                  } catch (err) {}
-                  setStatusMessage(
-                    e.target.checked ? "Consent saved" : "Consent removed",
-                  );
-                  setTimeout(() => setStatusMessage(null), 2500);
-                }}
-              />
-              <span className="text-sm text-slate-700">
-                I consent to store my non-sensitive data for this prototype
-              </span>
-            </label>
-          </div>
-
-          <div className="mt-4 text-sm text-slate-600">
-            <p>
-              This prototype demonstrates how patient triage and reports could
-              be handled. No real PHI is sent to third-party services in this
-              demo. For production, connect a secure backend and obtain explicit
-              consent.
-            </p>
-            <details className="mt-2">
-              <summary className="cursor-pointer text-sm font-medium text-slate-800">
-                Data handling details
-              </summary>
-              <div className="mt-2 text-sm text-slate-600">
-                <ul className="list-disc ml-5">
-                  <li>
-                    Support messages: kept in-memory for demo and broadcast via
-                    SSE.
-                  </li>
-                  <li>Reports: stored in-memory via the demo server.</li>
-                  <li>
-                    For production, use secure storage (Neon/Supabase) and
-                    encryption at rest.
-                  </li>
-                </ul>
-              </div>
-            </details>
-          </div>
-
-          {statusMessage && (
-            <p className="mt-3 text-sm text-emerald-700">{statusMessage}</p>
-          )}
-        </div>
-      </section>
+        </motion.div>
+      </motion.section>
     </div>
   );
 }
