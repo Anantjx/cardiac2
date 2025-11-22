@@ -22,17 +22,17 @@
     --popover-foreground: 222.2 84% 4.9%;
 
     /* Brand and semantic colors (HSL) */
-    /* Primary: #4CAF50 */
-    --primary: 122.7 39% 49%;
+    /* Primary: #DC2626 (Red for CardiaX) */
+    --primary: 0 84% 50%;
     --primary-foreground: 0 0% 100%;
     /* Success mirrors primary */
-    --success: 122.7 39% 49%;
+    --success: 142 72% 29%;
     --success-foreground: 0 0% 100%;
     /* Warning: #FF5722 */
     --warning: 14 100% 57%;
     --warning-foreground: 0 0% 100%;
     /* Danger: #F44336 */
-    --danger: 4 90% 58%;
+    --danger: 0 84% 50%;
     --danger-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
