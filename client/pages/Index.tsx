@@ -1287,72 +1287,245 @@ export default function Index() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="mt-8 p-8 md:p-12 rounded-3xl bg-gradient-to-br from-white to-slate-50 shadow-xl border border-slate-100"
+              className={`mt-8 p-8 md:p-12 rounded-3xl shadow-2xl border-2 ${
+                triage.risk === "High"
+                  ? "bg-gradient-to-br from-red-50 to-red-100 border-red-300"
+                  : triage.risk === "Medium"
+                  ? "bg-gradient-to-br from-yellow-50 to-orange-100 border-orange-300"
+                  : "bg-gradient-to-br from-green-50 to-emerald-100 border-green-300"
+              }`}
               role="status"
               aria-live="polite"
             >
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-6">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">Assessment Result</p>
-                  <h3 className="text-2xl font-bold text-slate-900 mt-1">
+                  <p className={`text-sm font-bold uppercase tracking-wide ${
+                    triage.risk === "High"
+                      ? "text-red-700"
+                      : triage.risk === "Medium"
+                      ? "text-orange-700"
+                      : "text-green-700"
+                  }`}>
+                    ⚕️ Assessment Complete
+                  </p>
+                  <h3 className={`text-3xl font-black mt-2 ${
+                    triage.risk === "High"
+                      ? "text-red-900"
+                      : triage.risk === "Medium"
+                      ? "text-orange-900"
+                      : "text-green-900"
+                  }`}>
                     {patientName ? `${patientName.split(" ")[0]}'s` : "Your"} Risk Level
                   </h3>
                 </div>
                 {riskBadge}
               </div>
-              <p className="text-slate-700 leading-relaxed mb-8">{triage.summary}</p>
 
+              <p className={`leading-relaxed mb-8 text-lg font-medium ${
+                triage.risk === "High"
+                  ? "text-red-800"
+                  : triage.risk === "Medium"
+                  ? "text-orange-800"
+                  : "text-green-800"
+              }`}>
+                {triage.summary}
+              </p>
+
+              {/* Assigned Doctor Section */}
               {assigned ? (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 rounded-2xl bg-blue-50 border border-blue-200"
+                  className={`grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 rounded-2xl ${
+                    triage.risk === "High"
+                      ? "bg-red-100/50 border border-red-300"
+                      : triage.risk === "Medium"
+                      ? "bg-orange-100/50 border border-orange-300"
+                      : "bg-green-100/50 border border-green-300"
+                  }`}
                 >
                   <div className="flex items-center gap-4">
                     <img
                       src={assigned.doctor.photo}
                       alt={assigned.doctor.name}
-                      className="h-16 w-16 rounded-full border-2 border-blue-200"
+                      className={`h-16 w-16 rounded-full border-4 ${
+                        triage.risk === "High"
+                          ? "border-red-400"
+                          : triage.risk === "Medium"
+                          ? "border-orange-400"
+                          : "border-green-400"
+                      }`}
                     />
                     <div>
-                      <p className="text-xs font-semibold text-blue-600 uppercase">Assigned Doctor</p>
+                      <p className={`text-xs font-bold uppercase tracking-widest ${
+                        triage.risk === "High"
+                          ? "text-red-700"
+                          : triage.risk === "Medium"
+                          ? "text-orange-700"
+                          : "text-green-700"
+                      }`}>
+                        👨‍⚕️ Assigned Doctor
+                      </p>
                       <p className="font-bold text-slate-900 text-lg">{assigned.doctor.name}</p>
                       <p className="text-sm text-slate-600">{assigned.doctor.specialty}</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-start md:items-end gap-3">
-                    <p className="text-sm text-slate-600">
-                      <span className="font-semibold block text-slate-900">Appointment Slot</span>
-                      {new Date(assigned.slot).toLocaleString()}
-                    </p>
+                    <div className="text-sm">
+                      <span className="font-bold block text-slate-900">📅 Appointment Time</span>
+                      <p className="text-slate-700 mt-1">{new Date(assigned.slot).toLocaleString()}</p>
+                    </div>
                     <motion.button
-                      onClick={() =>
-                        confirmAppointment(assigned.doctor.id, assigned.slot)
-                      }
-                      whileHover={{ scale: 1.05 }}
+                      onClick={() => {
+                        playSound("success");
+                        confirmAppointment(assigned.doctor.id, assigned.slot);
+                      }}
+                      whileHover={{ scale: 1.08 }}
                       whileTap={{ scale: 0.95 }}
-                      className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md transition-all"
+                      className={`px-6 py-3 rounded-xl font-bold shadow-md transition-all ${
+                        triage.risk === "High"
+                          ? "bg-red-600 hover:bg-red-700 text-white"
+                          : triage.risk === "Medium"
+                          ? "bg-orange-600 hover:bg-orange-700 text-white"
+                          : "bg-green-600 hover:bg-green-700 text-white"
+                      }`}
                     >
-                      Confirm
+                      ✓ Confirm
                     </motion.button>
                   </div>
                 </motion.div>
               ) : (
-                <p className="text-sm text-slate-600 mb-8 p-4 rounded-xl bg-yellow-50 border border-yellow-200">
-                  🔄 Assigning best-match doctor...
-                </p>
+                <motion.div
+                  animate={{ scale: [1, 1.02, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className={`text-sm mb-8 p-4 rounded-xl border-2 font-bold ${
+                    triage.risk === "High"
+                      ? "bg-red-100 border-red-300 text-red-800"
+                      : triage.risk === "Medium"
+                      ? "bg-orange-100 border-orange-300 text-orange-800"
+                      : "bg-green-100 border-green-300 text-green-800"
+                  }`}
+                >
+                  🔄 Assigning best-match doctor... Please wait.
+                </motion.div>
               )}
 
-              {(triage || reportReady) && (
-                <motion.button
-                  onClick={generatePdfReport}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="inline-flex items-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 px-6 py-3 text-lg font-semibold text-white shadow-md transition-all"
+              {/* Check-out Section */}
+              {!checkoutTime && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 p-6 rounded-2xl bg-white/80 border-2 border-slate-200"
                 >
-                  📄 Download Report
-                </motion.button>
+                  <p className="text-sm font-semibold text-slate-700 mb-4">
+                    ✅ Check-in successful at {checkinTime.toLocaleTimeString()}
+                  </p>
+                  <motion.button
+                    onClick={() => {
+                      playSound("success");
+                      setCheckoutTime(new Date());
+                    }}
+                    whileHover={{ scale: 1.05, boxShadow: "0 10px 25px rgba(0,0,0,0.15)" }}
+                    whileTap={{ scale: 0.95 }}
+                    className="w-full px-6 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold text-lg shadow-lg transition-all"
+                  >
+                    🙏 Thank You & Complete Check-Out
+                  </motion.button>
+                </motion.div>
               )}
+
+              {/* Checkout Confirmation */}
+              {checkoutTime && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`mb-6 p-8 rounded-2xl border-2 text-center ${
+                    triage.risk === "High"
+                      ? "bg-red-100 border-red-400"
+                      : triage.risk === "Medium"
+                      ? "bg-orange-100 border-orange-400"
+                      : "bg-green-100 border-green-400"
+                  }`}
+                >
+                  <motion.div
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 0.6 }}
+                    className="text-4xl mb-3"
+                  >
+                    ��
+                  </motion.div>
+                  <h4 className={`text-2xl font-black mb-3 ${
+                    triage.risk === "High"
+                      ? "text-red-900"
+                      : triage.risk === "Medium"
+                      ? "text-orange-900"
+                      : "text-green-900"
+                  }`}>
+                    Thank You, {patientName || "Patient"}! 🎉
+                  </h4>
+                  <p className={`font-semibold mb-4 ${
+                    triage.risk === "High"
+                      ? "text-red-800"
+                      : triage.risk === "Medium"
+                      ? "text-orange-800"
+                      : "text-green-800"
+                  }`}>
+                    Your assessment has been completed successfully
+                  </p>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="bg-white/60 p-3 rounded-lg">
+                      <p className="text-slate-600">Check-in Time</p>
+                      <p className="font-bold text-slate-900">{checkinTime.toLocaleTimeString()}</p>
+                    </div>
+                    <div className="bg-white/60 p-3 rounded-lg">
+                      <p className="text-slate-600">Check-out Time</p>
+                      <p className="font-bold text-slate-900">{checkoutTime.toLocaleTimeString()}</p>
+                    </div>
+                  </div>
+                  <p className={`mt-4 text-xs uppercase font-bold tracking-wide ${
+                    triage.risk === "High"
+                      ? "text-red-700"
+                      : triage.risk === "Medium"
+                      ? "text-orange-700"
+                      : "text-green-700"
+                  }`}>
+                    Risk Level: {triage.risk}
+                  </p>
+                </motion.div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                {(triage || reportReady) && (
+                  <motion.button
+                    onClick={generatePdfReport}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-bold shadow-md transition-all ${
+                      triage.risk === "High"
+                        ? "bg-red-600 hover:bg-red-700 text-white"
+                        : triage.risk === "Medium"
+                        ? "bg-orange-600 hover:bg-orange-700 text-white"
+                        : "bg-green-600 hover:bg-green-700 text-white"
+                    }`}
+                  >
+                    📄 Download Report
+                  </motion.button>
+                )}
+                {checkoutTime && (
+                  <motion.button
+                    onClick={() => {
+                      playSound("success");
+                      window.print();
+                    }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-600 hover:bg-slate-700 px-6 py-3 text-white font-bold shadow-md transition-all"
+                  >
+                    🖨️ Print Summary
+                  </motion.button>
+                )}
+              </div>
             </motion.div>
           )}
         </motion.div>
