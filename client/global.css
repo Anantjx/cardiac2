@@ -1,5 +1,5 @@
 /** @import must precede all other statements */
-@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Open+Sans:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Open+Sans:wght@400;600;700&family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -22,17 +22,17 @@
     --popover-foreground: 222.2 84% 4.9%;
 
     /* Brand and semantic colors (HSL) */
-    /* Primary: #4CAF50 */
-    --primary: 122.7 39% 49%;
+    /* Primary: #DC2626 (Red for CardiaX) */
+    --primary: 0 84% 50%;
     --primary-foreground: 0 0% 100%;
     /* Success mirrors primary */
-    --success: 122.7 39% 49%;
+    --success: 142 72% 29%;
     --success-foreground: 0 0% 100%;
     /* Warning: #FF5722 */
     --warning: 14 100% 57%;
     --warning-foreground: 0 0% 100%;
     /* Danger: #F44336 */
-    --danger: 4 90% 58%;
+    --danger: 0 84% 50%;
     --danger-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
@@ -128,6 +128,8 @@
   body {
     @apply bg-background text-foreground;
     font-family:
+      "Inter",
+      "Poppins",
       "Roboto",
       "Open Sans",
       system-ui,
@@ -139,5 +141,48 @@
       "Segoe UI Emoji";
     font-size: 16px;
     line-height: 1.6;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Poppins", system-ui, -apple-system, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  @keyframes slideInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes pulse-scale {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-slide-in {
+    animation: slideInUp 0.6s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out;
   }
 }
