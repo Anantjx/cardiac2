@@ -2,13 +2,19 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import serverless from "serverless-http";
 import { createServer } from "../server";
 
-// Create Express app
-const app = createServer();
+// Create Express app once (singleton pattern for serverless)
+let app: ReturnType<typeof createServer> | null = null;
+let handler: ReturnType<typeof serverless> | null = null;
 
-// Wrap Express app with serverless-http
-const handler = serverless(app, {
-  binary: ["image/*", "application/pdf"],
-});
+function getHandler() {
+  if (!app) {
+    app = createServer();
+    handler = serverless(app, {
+      binary: ["image/*", "application/pdf"],
+    });
+  }
+  return handler!;
+}
 
 export default async function (req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
@@ -29,7 +35,8 @@ export default async function (req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Call the serverless handler
-  return handler(req, res);
+  // Get the handler and process the request
+  const serverlessHandler = getHandler();
+  return serverlessHandler(req, res);
 }
 
