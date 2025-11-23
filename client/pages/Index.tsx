@@ -47,9 +47,10 @@ export default function Index() {
   const [loading, setLoading] = useState(false);
 
   const [reports, setReports] = useState<any[]>([]);
+  const [patientHistory, setPatientHistory] = useState<any[]>([]);
+  const [historyComparison, setHistoryComparison] = useState<any>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
-  const [qrData, setQrData] = useState<string | null>(null);
-  const [qrInput, setQrInput] = useState("");
   const [checkoutTime, setCheckoutTime] = useState<Date | null>(null);
   const [checkinTime] = useState<Date>(new Date());
 
@@ -152,12 +153,33 @@ export default function Index() {
       );
       return;
     }
-    const t = transcript.toLowerCase();
-    const yes = /\b(yes|yeah|yep|yup|sure|ya|haan|ha)\b/.test(t);
-    const no = /\b(no|not|nope|nahi|nahin|na)\b/.test(t);
-    if (yes) handleManualAnswer(id, true);
-    else if (no) handleManualAnswer(id, false);
-    else setVoiceMessage("Could not interpret. Use buttons.");
+      const t = transcript.toLowerCase().trim();
+      
+      // Enhanced pattern matching for yes/no responses
+      const yesPatterns = [
+        /\b(yes|yeah|yep|yup|sure|ya|y|yea|yah|aye|okay|ok|correct|right|true|affirmative|definitely|absolutely|indeed|exactly|precisely|haan|ha|hmm|hmm hmm)\b/i,
+        /^(yes|yeah|yep|yup|sure|ya|y|okay|ok)$/i,
+        /\byes\s+(i|it|that|this)\s+(is|do|am|have|will)/i,
+      ];
+      
+      const noPatterns = [
+        /\b(no|not|nope|nah|nahi|nahin|na|never|negative|incorrect|wrong|false|nay|don't|doesn't|didn't|won't|can't|cannot)\b/i,
+        /^(no|nope|nah|never)$/i,
+        /\bno\s+(i|it|that|this)\s+(is|do|am|have|will|don't|doesn't|didn't)/i,
+      ];
+      
+      const isYes = yesPatterns.some(pattern => pattern.test(t));
+      const isNo = noPatterns.some(pattern => pattern.test(t));
+      
+      if (isYes && !isNo) {
+        handleManualAnswer(id, true);
+        setVoiceMessage(`✓ Recorded: Yes`);
+      } else if (isNo && !isYes) {
+        handleManualAnswer(id, false);
+        setVoiceMessage(`✓ Recorded: No`);
+      } else {
+        setVoiceMessage(`Could not understand "${transcript}". Please say "yes" or "no" or use the buttons.`);
+      }
   }
 
   function speak(text: string) {
@@ -173,22 +195,58 @@ export default function Index() {
     });
   }
 
+  async function requestMicrophonePermission(): Promise<boolean> {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch (error: any) {
+      console.error("Microphone permission error:", error);
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        setVoiceMessage("Microphone permission denied. Please allow access in your browser settings.");
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+        setVoiceMessage("No microphone found. Please connect a microphone.");
+      } else {
+        setVoiceMessage("Unable to access microphone. Please check your device settings.");
+      }
+      return false;
+    }
+  }
+
   function listenOnce(timeout = 10000) {
-    return new Promise<string | null>((resolve) => {
+    return new Promise<string | null>(async (resolve) => {
+      // Check for Speech Recognition API
       const SpeechRecognition =
         (window as any).SpeechRecognition ||
         (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) return resolve(null);
+      
+      if (!SpeechRecognition) {
+        setVoiceMessage("Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.");
+        resolve(null);
+        return;
+      }
+
+      // Request microphone permission first
+      const hasPermission = await requestMicrophonePermission();
+      if (!hasPermission) {
+        resolve(null);
+        return;
+      }
 
       const recog = new SpeechRecognition();
+      
+      // Enhanced recognition settings
       recog.lang = "en-US";
-      recog.interimResults = false;
-      recog.maxAlternatives = 3;
+      recog.interimResults = true; // Get interim results for better feedback
+      recog.maxAlternatives = 5; // Increased alternatives for better matching
       recog.continuous = false;
+      recog.serviceURI = undefined; // Use default service
 
       let finished = false;
       let timeoutId: any = null;
       let pollTimer: any = null;
+      let finalTranscript = "";
+      let interimTranscript = "";
 
       const cleanup = () => {
         try {
@@ -196,6 +254,11 @@ export default function Index() {
           recog.onerror = null;
           recog.onend = null;
           recog.onnomatch = null;
+          recog.onspeechstart = null;
+          recog.onspeechend = null;
+          recog.onaudiostart = null;
+          recog.onaudioend = null;
+          recog.onstart = null;
         } catch (e) {
           // ignore
         }
@@ -210,25 +273,65 @@ export default function Index() {
         } catch {}
       };
 
+      // Enhanced result handling
       recog.onresult = (ev: any) => {
-        finished = true;
-        clearAll();
-        try {
-          const t = ev.results[0][0].transcript;
-          resolve(t);
-        } catch (e) {
-          resolve(null);
+        finalTranscript = "";
+        interimTranscript = "";
+
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const transcript = ev.results[i][0].transcript;
+          if (ev.results[i].isFinal) {
+            finalTranscript += transcript + " ";
+          } else {
+            interimTranscript += transcript;
+          }
         }
-        try {
-          recog.stop();
-        } catch {}
-        cleanup();
+
+        // Show interim results for feedback
+        if (interimTranscript) {
+          setVoiceMessage(`Heard: "${interimTranscript}"...`);
+        }
+
+        // If we have final results, use them
+        if (finalTranscript.trim()) {
+          finished = true;
+          clearAll();
+          const result = finalTranscript.trim();
+          try {
+            recog.stop();
+          } catch {}
+          cleanup();
+          resolve(result);
+          return;
+        }
+      };
+
+      recog.onspeechstart = () => {
+        setVoiceMessage("🎤 Speech detected, listening...");
+      };
+
+      recog.onspeechend = () => {
+        setVoiceMessage("Processing your response...");
+      };
+
+      recog.onaudiostart = () => {
+        setVoiceMessage("🎤 Microphone active, please speak...");
+      };
+
+      recog.onaudioend = () => {
+        if (!finished) {
+          setVoiceMessage("Audio input ended, processing...");
+        }
+      };
+
+      recog.onstart = () => {
+        setVoiceMessage("🎤 Listening... Please say 'yes' or 'no'");
       };
 
       recog.onnomatch = () => {
         finished = true;
         clearAll();
-        setVoiceMessage("No recognizable speech detected");
+        setVoiceMessage("No clear speech detected. Please try again or use the buttons.");
         try {
           recog.stop();
         } catch {}
@@ -251,21 +354,27 @@ export default function Index() {
         else if (ev && typeof ev.error === "string") detail = ev.error;
 
         let friendly = "Recognition error";
-        if (code === "no-speech")
-          friendly = "No speech detected. Please speak again more clearly.";
-        else if (code === "audio-capture")
-          friendly =
-            "Microphone not available. Check your device and permissions.";
-        else if (code === "not-allowed" || code === "permission-denied")
-          friendly =
-            "Microphone permission denied. Please allow microphone access in your browser.";
-        else if (code === "network")
-          friendly = "Network error during speech recognition.";
-        else if (code === "service-not-allowed")
-          friendly = "Speech service not allowed.";
-        else if (detail) friendly = detail;
-        else if (code) friendly = String(code);
-        else {
+        if (code === "no-speech") {
+          friendly = "No speech detected. Please speak clearly and try again.";
+        } else if (code === "audio-capture") {
+          friendly = "Microphone not available. Please check your device and try again.";
+        } else if (code === "not-allowed" || code === "permission-denied") {
+          friendly = "Microphone permission denied. Please allow microphone access and refresh the page.";
+        } else if (code === "network") {
+          friendly = "Network error. Please check your internet connection.";
+        } else if (code === "service-not-allowed") {
+          friendly = "Speech service not available. Please try again later.";
+        } else if (code === "aborted") {
+          friendly = "Recognition was interrupted.";
+          // Don't show error for aborted, it's usually intentional
+          cleanup();
+          resolve(null);
+          return;
+        } else if (detail) {
+          friendly = detail;
+        } else if (code) {
+          friendly = `Error: ${String(code)}`;
+        } else {
           try {
             friendly = JSON.stringify(ev);
           } catch (e) {
@@ -283,6 +392,14 @@ export default function Index() {
 
       recog.onend = () => {
         if (!finished) {
+          // If we have interim results, try to use them
+          if (interimTranscript.trim()) {
+            finished = true;
+            clearAll();
+            cleanup();
+            resolve(interimTranscript.trim());
+            return;
+          }
           clearAll();
           cleanup();
           resolve(null);
@@ -292,14 +409,36 @@ export default function Index() {
       try {
         voiceAbortRef.current = false;
         recog.start();
-      } catch (e) {
+      } catch (e: any) {
         console.error("Recognition start failed", e);
-        cleanup();
-        resolve(null);
+        if (e.message && e.message.includes("already started")) {
+          // Recognition already running, stop it first
+          try {
+            recog.stop();
+            setTimeout(() => {
+              try {
+                recog.start();
+              } catch (e2) {
+                setVoiceMessage("Unable to start voice recognition. Please try again.");
+                cleanup();
+                resolve(null);
+              }
+            }, 100);
+          } catch (e3) {
+            setVoiceMessage("Voice recognition error. Please refresh and try again.");
+            cleanup();
+            resolve(null);
+          }
+        } else {
+          setVoiceMessage("Unable to start voice recognition. Please check your microphone.");
+          cleanup();
+          resolve(null);
+        }
       }
 
       pollTimer = window.setInterval(() => {
         if (voiceAbortRef.current) {
+          finished = true;
           try {
             recog.stop();
           } catch {}
@@ -311,12 +450,21 @@ export default function Index() {
 
       timeoutId = window.setTimeout(() => {
         if (!finished) {
-          try {
-            recog.stop();
-          } catch {}
-          clearAll();
-          cleanup();
-          resolve(null);
+          finished = true;
+          // Try to use interim results if available
+          if (interimTranscript.trim()) {
+            clearAll();
+            cleanup();
+            resolve(interimTranscript.trim());
+          } else {
+            setVoiceMessage("Listening timeout. Please try again or use the buttons.");
+            try {
+              recog.stop();
+            } catch {}
+            clearAll();
+            cleanup();
+            resolve(null);
+          }
         }
       }, timeout);
     });
@@ -342,21 +490,51 @@ export default function Index() {
       { id: "fainting", q: "Have you fainted or felt close to fainting?" },
     ];
 
-    if (
-      !(window as any).speechSynthesis &&
-      !(window as any).SpeechRecognition &&
-      !(window as any).webkitSpeechRecognition
-    ) {
+    // Enhanced browser support check
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    
+    const hasSpeechSynthesis = !!(window as any).speechSynthesis;
+
+    if (!SpeechRecognition) {
       alert(
-        "Voice not supported in this browser. Use the on-screen buttons to answer.",
+        "Voice recognition is not supported in this browser. Please use Chrome, Edge, or Safari for voice features. You can still use the on-screen buttons to answer.",
       );
       return;
     }
 
+    if (!hasSpeechSynthesis) {
+      alert(
+        "Text-to-speech is not supported. You can still use voice input, but questions won't be read aloud.",
+      );
+    }
+
+    // Check microphone permission first
+    setVoiceMessage("Requesting microphone permission...");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+    } catch (error: any) {
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        alert("Microphone permission is required for voice triage. Please allow microphone access in your browser settings and try again.");
+        return;
+      } else if (error.name === "NotFoundError") {
+        alert("No microphone found. Please connect a microphone and try again.");
+        return;
+      } else {
+        alert("Unable to access microphone. Please check your device settings.");
+        return;
+      }
+    }
+
     playSound("pulse");
     setVoiceActive(true);
-    setVoiceMessage("Starting voice triage...");
+    setVoiceMessage("Starting voice triage... Please wait.");
     voiceAbortRef.current = false;
+    
+    // Small delay to ensure state is updated
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     for (let i = 0; i < questions.length; i++) {
       if (voiceAbortRef.current) break;
@@ -379,17 +557,38 @@ export default function Index() {
         continue;
       }
 
-      const t = transcript.toLowerCase();
-      const yes = /\b(yes|yeah|yep|yup|sure|ya|haan|ha)\b/.test(t);
-      const no = /\b(no|not|nope|nahi|nahin|na)\b/.test(t);
-      if (yes) toggleAnswer(item.id, true);
-      else if (no) toggleAnswer(item.id, false);
-      else {
+      const t = transcript.toLowerCase().trim();
+      
+      // Enhanced pattern matching for yes/no responses
+      const yesPatterns = [
+        /\b(yes|yeah|yep|yup|sure|ya|y|yea|yah|aye|okay|ok|correct|right|true|affirmative|definitely|absolutely|indeed|exactly|precisely|haan|ha|hmm|hmm hmm)\b/i,
+        /^(yes|yeah|yep|yup|sure|ya|y|okay|ok)$/i,
+        /\byes\s+(i|it|that|this)\s+(is|do|am|have|will)/i,
+      ];
+      
+      const noPatterns = [
+        /\b(no|not|nope|nah|nahi|nahin|na|never|negative|incorrect|wrong|false|nay|don't|doesn't|didn't|won't|can't|cannot)\b/i,
+        /^(no|nope|nah|never)$/i,
+        /\bno\s+(i|it|that|this)\s+(is|do|am|have|will|don't|doesn't|didn't)/i,
+      ];
+      
+      const isYes = yesPatterns.some(pattern => pattern.test(t));
+      const isNo = noPatterns.some(pattern => pattern.test(t));
+      
+      if (isYes && !isNo) {
+        toggleAnswer(item.id, true);
+        setVoiceMessage(`✓ Question ${i + 1}: Yes recorded`);
+        await speak("Yes, recorded.");
+      } else if (isNo && !isYes) {
+        toggleAnswer(item.id, false);
+        setVoiceMessage(`✓ Question ${i + 1}: No recorded`);
+        await speak("No, recorded.");
+      } else {
         setVoiceMessage(
-          "Could not interpret response. Please answer using the buttons.",
+          `Could not understand "${transcript}". Please say "yes" or "no" clearly, or use the buttons.`,
         );
         await speak(
-          "I could not understand your answer. Please use the screen buttons to answer.",
+          "I could not understand your answer. Please say yes or no clearly, or use the screen buttons.",
         );
       }
     }
@@ -438,6 +637,24 @@ export default function Index() {
           ecg: data.lab.ecg,
         });
 
+      // Automatically assign doctor based on risk level
+      try {
+        setStatusMessage("Assigning doctor...");
+        const assignRes = await fetch("/api/assign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            risk: data.risk || "Low",
+            patientName: patientName || "Anonymous",
+          }),
+        });
+        const assignData = await assignRes.json();
+        setAssigned(assignData);
+        playSound("success");
+      } catch (err) {
+        console.error("Auto-assignment failed:", err);
+      }
+
       if (reportFile && !reportReady) {
         setStatusStage(2);
         setStatusMessage("Analyzing lab report...");
@@ -469,6 +686,57 @@ export default function Index() {
         });
         const p = await fetch("/api/patients");
         setPatients(await p.json());
+
+          // Save to patient history
+          try {
+            await fetch("/api/patient-history", {
+              method: "POST",
+              headers: { 
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                patientName,
+                risk: data.risk || "Low",
+                symptoms: answers,
+                freeText: symptoms,
+                labReport: reportDetails
+                  ? {
+                      cholesterol: reportDetails.cholesterol,
+                      ecg: reportDetails.ecg,
+                      analysis: reportDetails.analysis,
+                    }
+                  : undefined,
+                assignedDoctor: assigned?.doctor,
+                appointmentTime: assigned?.slot,
+                summary: data.summary || "",
+              }),
+            });
+
+          // Get comparison with previous checkups
+          const compareRes = await fetch("/api/patient-history/compare", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              patientName,
+              currentRisk: data.risk || "Low",
+              currentSymptoms: {
+                ...answers,
+                labReport: reportDetails,
+              },
+            }),
+          });
+          const comparison = await compareRes.json();
+          setHistoryComparison(comparison);
+
+          // Fetch full history
+          const histRes = await fetch(
+            `/api/patient-history?patient=${encodeURIComponent(patientName)}`
+          );
+          const history = await histRes.json();
+          setPatientHistory(history);
+        } catch (err) {
+          console.error("Failed to save history:", err);
+        }
       }
 
       setStatusMessage("Results ready");
@@ -487,19 +755,48 @@ export default function Index() {
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     const f = files[0];
+    
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "application/pdf"];
+    if (!validTypes.includes(f.type) && !f.name.match(/\.(pdf|jpg|jpeg|png|gif|webp)$/i)) {
+      alert("Please upload a PDF or image file (JPG, PNG, GIF, WebP)");
+      return;
+    }
+
+    // Check file size (50MB limit)
+    if (f.size > 50 * 1024 * 1024) {
+      alert("File size exceeds 50MB limit. Please upload a smaller file.");
+      return;
+    }
+
     setReportFile(f);
     setReportReady(false);
     setReportDetails(null);
 
     setStatusStage(2);
-    setStatusMessage("Analyzing lab report with AI...");
+    setStatusMessage("Reading file...");
 
     try {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const base64Data = (e.target?.result as string)?.split(",")[1] || "";
         
+        if (!base64Data) {
+          setStatusMessage("Failed to read file. Please try again.");
+          playSound("error");
+          return;
+        }
+
+        setStatusMessage("Uploading and analyzing lab report with AI...");
+        
         try {
+          console.log("Sending report for analysis:", {
+            fileName: f.name,
+            mimeType: f.type,
+            fileSize: f.size,
+            dataLength: base64Data.length,
+          });
+
           const response = await fetch("/api/analyze-lab-report", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -511,42 +808,71 @@ export default function Index() {
             }),
           });
 
+          console.log("Analysis response status:", response.status, response.statusText);
+
           if (!response.ok) {
             let errorMessage = "Failed to analyze lab report";
+            let errorDetails = "";
             try {
               const errorData = await response.json();
+              console.error("Error response:", errorData);
               if (errorData.details) {
-                errorMessage = typeof errorData.details === 'string' ? errorData.details : JSON.stringify(errorData.details);
+                errorDetails = typeof errorData.details === 'string' ? errorData.details : JSON.stringify(errorData.details);
+                errorMessage = `Analysis failed: ${errorDetails}`;
               } else if (errorData.error) {
-                errorMessage = typeof errorData.error === 'string' ? errorData.error : JSON.stringify(errorData.error);
+                errorDetails = typeof errorData.error === 'string' ? errorData.error : JSON.stringify(errorData.error);
+                errorMessage = `Analysis error: ${errorDetails}`;
               } else {
-                errorMessage = JSON.stringify(errorData);
+                errorMessage = `Analysis failed: ${JSON.stringify(errorData)}`;
               }
             } catch (e) {
               const text = await response.text().catch(() => "Unknown error");
-              errorMessage = text || "Failed to analyze lab report";
+              errorMessage = `Analysis failed: ${text || "Unknown error"}`;
+              console.error("Failed to parse error:", e);
             }
-            throw new Error(errorMessage);
+            
+            setStatusMessage(`Error: ${errorMessage}`);
+            playSound("error");
+            alert(`Failed to analyze lab report:\n\n${errorMessage}\n\nPlease check:\n1. Your internet connection\n2. The file format (PDF or image)\n3. Server logs for more details`);
+            setStatusMessage(null);
+            setStatusStage(0);
+            setReportReady(false);
+            return;
           }
 
           const analysis: LabReportAnalysis = await response.json();
+          console.log("Analysis received:", analysis);
 
-          const cholesterolLevel = analysis.levels.find(
+          // Validate analysis response
+          if (!analysis || (!analysis.summary && !analysis.levels && !analysis.findings)) {
+            throw new Error("Invalid analysis response from server");
+          }
+
+          console.log("Processing analysis results...");
+          
+          // Extract cholesterol level
+          const cholesterolLevel = analysis.levels?.find(
             (l) =>
               l.name.toLowerCase().includes("cholesterol") &&
               !l.name.toLowerCase().includes("hdl") &&
               !l.name.toLowerCase().includes("ldl")
+          ) || analysis.levels?.find((l) => 
+            l.name.toLowerCase().includes("total cholesterol")
           );
-          const ecgFinding = analysis.findings.find((f) =>
+
+          // Extract ECG findings
+          const ecgFinding = analysis.findings?.find((f) =>
             f.toLowerCase().includes("ecg")
-          ) || analysis.findings.find((f) =>
+          ) || analysis.findings?.find((f) =>
             f.toLowerCase().includes("electrocardiogram")
+          ) || analysis.findings?.find((f) =>
+            f.toLowerCase().includes("heart")
           );
 
           const cholesterol = cholesterolLevel
-            ? parseFloat(cholesterolLevel.value)
+            ? parseFloat(cholesterolLevel.value.replace(/[^0-9.]/g, ""))
             : undefined;
-          const ecg = ecgFinding || analysis.summary;
+          const ecg = ecgFinding || analysis.summary || "No ECG findings reported";
 
           setReportReady(true);
           setReportDetails({
@@ -555,13 +881,24 @@ export default function Index() {
             analysis,
           });
 
+          console.log("Report analysis complete:", {
+            hasCholesterol: !!cholesterol,
+            hasECG: !!ecg,
+            levelsCount: analysis.levels?.length || 0,
+            findingsCount: analysis.findings?.length || 0,
+          });
+
+          playSound("success");
+          setStatusMessage("✅ Lab report analyzed successfully!");
+          setStatusStage(3);
+          
           if (triage) {
-            setStatusMessage("Lab analysis complete");
-            setStatusStage(3);
-            setTimeout(() => setStatusMessage("Results ready"), 600);
+            setTimeout(() => setStatusMessage("Results ready"), 1000);
           } else {
-            setStatusMessage(null);
-            setStatusStage(0);
+            setTimeout(() => {
+              setStatusMessage(null);
+              setStatusStage(0);
+            }, 2000);
           }
 
           try {
@@ -585,17 +922,23 @@ export default function Index() {
           }
         } catch (error: any) {
           console.error("Error analyzing lab report:", error);
-          let errorMsg = "Unknown error";
+          let errorMsg = "Unknown error occurred";
           if (error?.message) {
             errorMsg = typeof error.message === 'string' ? error.message : JSON.stringify(error.message);
           } else if (error) {
             errorMsg = typeof error === 'string' ? error : JSON.stringify(error);
           }
+          
           playSound("error");
-          alert("Failed to analyze lab report: " + errorMsg);
+          setStatusMessage(`❌ Analysis failed: ${errorMsg}`);
+          
+          // Show detailed error alert
+          alert(`Failed to analyze lab report:\n\n${errorMsg}\n\nTroubleshooting:\n1. Check if the file is a valid PDF or image\n2. Ensure file size is under 50MB\n3. Check your internet connection\n4. Verify GEMINI_API_KEY is set in server .env file\n5. Check browser console and server logs for details`);
+          
           setStatusMessage(null);
           setStatusStage(0);
           setReportReady(false);
+          setReportFile(null);
         }
       };
 
@@ -640,15 +983,6 @@ export default function Index() {
     }
   }
 
-  function generateQrForPatient() {
-    if (!patientName) {
-      alert("Enter patient name to generate QR");
-      return;
-    }
-    playSound("pulse");
-    const payload = `patient:${encodeURIComponent(patientName)}:${Date.now()}`;
-    setQrData(payload);
-  }
 
   function generatePdfReport() {
     try {
@@ -732,75 +1066,6 @@ export default function Index() {
     }
   }
 
-  async function handleScanOrPaste() {
-    if (!qrInput) return alert("Paste QR data or scan result into the field");
-
-    let payload = qrInput.trim();
-    try {
-      const u = new URL(payload);
-      const data = u.searchParams.get("data") || u.searchParams.get("d");
-      if (data) payload = decodeURIComponent(data);
-    } catch (e) {
-      // not a URL, proceed
-    }
-
-    const parts = payload.split(":");
-    if (parts.length < 2) return alert("Invalid QR payload");
-    const prefix = parts[0];
-    if (prefix !== "patient" && prefix !== "p")
-      return alert("Invalid QR payload");
-    const name = decodeURIComponent(parts[1] || "");
-
-    if (!name) return alert("Invalid patient in QR");
-
-    const risk = triage?.risk || "Low";
-
-    try {
-      playSound("success");
-      const assignRes = await fetch("/api/assign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ risk, patientName: name }),
-      });
-      const assignJson = await assignRes.json();
-      setAssigned(assignJson);
-
-      await fetch("/api/patients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-
-      try {
-        const apptRes = await fetch("/api/appointments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            doctorId: assignJson.doctor.id,
-            patientName: name,
-            time: assignJson.slot,
-          }),
-        });
-        const appt = await apptRes.json();
-        setAppointments((s) => [appt, ...s]);
-        const p = await fetch("/api/patients");
-        setPatients(await p.json());
-
-        const r = await fetch(
-          `/api/reports?patient=${encodeURIComponent(name)}`,
-        );
-        setReports(await r.json());
-
-        alert("Assigned and appointment confirmed via QR");
-      } catch (e) {
-        console.error("Appointment confirm failed", e);
-      }
-    } catch (e) {
-      console.error(e);
-      playSound("error");
-      alert("Unable to assign from QR");
-    }
-  }
 
   const riskBadge = triage ? (
     <motion.div
@@ -1255,9 +1520,34 @@ export default function Index() {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-xl bg-blue-50 border border-blue-200"
+                className={`p-4 rounded-xl border ${
+                  voiceMessage.includes("✓") || voiceMessage.includes("finished")
+                    ? "bg-green-50 border-green-200"
+                    : voiceMessage.includes("🎤") || voiceMessage.includes("Listening")
+                    ? "bg-blue-50 border-blue-300"
+                    : voiceMessage.includes("error") || voiceMessage.includes("Error") || voiceMessage.includes("denied")
+                    ? "bg-red-50 border-red-200"
+                    : "bg-blue-50 border-blue-200"
+                }`}
               >
-                <p className="text-sm text-blue-800">{voiceMessage}</p>
+                <div className="flex items-center gap-2">
+                  {voiceActive && (voiceMessage.includes("🎤") || voiceMessage.includes("Listening")) && (
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1, repeat: Infinity }}
+                      className="w-3 h-3 rounded-full bg-red-500"
+                    />
+                  )}
+                  <p className={`text-sm ${
+                    voiceMessage.includes("✓") || voiceMessage.includes("finished")
+                      ? "text-green-800"
+                      : voiceMessage.includes("error") || voiceMessage.includes("Error") || voiceMessage.includes("denied")
+                      ? "text-red-800"
+                      : "text-blue-800"
+                  }`}>
+                    {voiceMessage}
+                  </p>
+                </div>
               </motion.div>
             )}
 
@@ -1330,6 +1620,232 @@ export default function Index() {
               }`}>
                 {triage.summary}
               </p>
+
+              {/* Patient History Comparison */}
+              {historyComparison && historyComparison.hasHistory && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-8 p-6 rounded-2xl bg-white/80 border-2 border-blue-200 shadow-lg"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                      Comparison with Previous Checkups
+                    </h4>
+                    <button
+                      onClick={() => setShowHistory(!showHistory)}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-semibold"
+                    >
+                      {showHistory ? "Hide" : "Show"} Full History
+                    </button>
+                  </div>
+
+                  {/* Risk Trend */}
+                  <div className="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-900">Risk Level Trend:</span>
+                      <span className={`font-bold ${
+                        historyComparison.comparison.analysis.riskTrend === "worsening"
+                          ? "text-red-600"
+                          : historyComparison.comparison.analysis.riskTrend === "improving"
+                          ? "text-green-600"
+                          : "text-slate-600"
+                      }`}>
+                        {historyComparison.comparison.analysis.riskTrend === "worsening" && "⚠️ Worsening"}
+                        {historyComparison.comparison.analysis.riskTrend === "improving" && "✅ Improving"}
+                        {historyComparison.comparison.analysis.riskTrend === "stable" && "➡️ Stable"}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm text-slate-600">
+                      Previous: <span className="font-semibold">{historyComparison.previous.risk}</span> → 
+                      Current: <span className="font-semibold">{triage.risk}</span>
+                      {historyComparison.comparison.analysis.daysSinceLastCheckup > 0 && (
+                        <span className="ml-2">
+                          ({historyComparison.comparison.analysis.daysSinceLastCheckup} days ago)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Symptom Changes */}
+                  {(historyComparison.comparison.analysis.newSymptoms.length > 0 ||
+                    historyComparison.comparison.analysis.resolvedSymptoms.length > 0 ||
+                    historyComparison.comparison.analysis.recurringSymptoms.length > 0) && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      {historyComparison.comparison.analysis.newSymptoms.length > 0 && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                          <p className="text-xs font-bold text-red-700 mb-1">🆕 NEW SYMPTOMS</p>
+                          <p className="text-sm text-red-800">
+                            {historyComparison.comparison.analysis.newSymptoms
+                              .map((s: string) => s.replace(/_/g, " "))
+                              .join(", ")}
+                          </p>
+                        </div>
+                      )}
+                      {historyComparison.comparison.analysis.resolvedSymptoms.length > 0 && (
+                        <div className="p-3 rounded-lg bg-green-50 border border-green-200">
+                          <p className="text-xs font-bold text-green-700 mb-1">✅ RESOLVED</p>
+                          <p className="text-sm text-green-800">
+                            {historyComparison.comparison.analysis.resolvedSymptoms
+                              .map((s: string) => s.replace(/_/g, " "))
+                              .join(", ")}
+                          </p>
+                        </div>
+                      )}
+                      {historyComparison.comparison.analysis.recurringSymptoms.length > 0 && (
+                        <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                          <p className="text-xs font-bold text-yellow-700 mb-1">🔄 RECURRING</p>
+                          <p className="text-sm text-yellow-800">
+                            {historyComparison.comparison.analysis.recurringSymptoms
+                              .map((s: string) => s.replace(/_/g, " "))
+                              .join(", ")}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Conclusions - What Patient Did After Previous Assessments */}
+                  {historyComparison.comparison.conclusions &&
+                    historyComparison.comparison.conclusions.length > 0 && (
+                      <div className="mb-4 p-4 rounded-xl bg-indigo-50 border-2 border-indigo-200">
+                        <p className="font-bold text-indigo-900 mb-3 text-lg flex items-center gap-2">
+                          <CheckCircle2 className="h-5 w-5" />
+                          Analysis Based on Your Previous Actions
+                        </p>
+                        <div className="space-y-2">
+                          {historyComparison.comparison.conclusions.map(
+                            (conclusion: string, idx: number) => (
+                              <div
+                                key={idx}
+                                className="p-3 rounded-lg bg-white/80 border border-indigo-100"
+                              >
+                                <p className="text-sm text-indigo-900 leading-relaxed">
+                                  {conclusion}
+                                </p>
+                              </div>
+                            )
+                          )}
+                        </div>
+                        
+                        {/* Show what patient did last time */}
+                        {historyComparison.previous.actions &&
+                          historyComparison.previous.actions.length > 0 && (
+                            <div className="mt-3 p-3 rounded-lg bg-indigo-100 border border-indigo-200">
+                              <p className="text-xs font-bold text-indigo-700 mb-2">
+                                What you did after your last {historyComparison.previous.risk} risk assessment:
+                              </p>
+                              <ul className="space-y-1">
+                                {historyComparison.previous.actions.map(
+                                  (action: any, idx: number) => (
+                                    <li
+                                      key={idx}
+                                      className="text-xs text-indigo-800 flex items-start gap-2"
+                                    >
+                                      <span className="mt-1">•</span>
+                                      <span>
+                                        <strong>{action.action}:</strong> {action.description}
+                                        {action.outcome && (
+                                          <span className={`ml-2 font-semibold ${
+                                            action.outcome === "improved"
+                                              ? "text-green-700"
+                                              : action.outcome === "worsened"
+                                              ? "text-red-700"
+                                              : "text-slate-700"
+                                          }`}>
+                                            (Outcome: {action.outcome})
+                                          </span>
+                                        )}
+                                      </span>
+                                    </li>
+                                  )
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                      </div>
+                    )}
+
+                  {/* Recommendations */}
+                  {historyComparison.comparison.recommendations &&
+                    historyComparison.comparison.recommendations.length > 0 && (
+                      <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200">
+                        <p className="font-bold text-amber-900 mb-2">📋 What to Do Next - Recommendations:</p>
+                        <ul className="space-y-1">
+                          {historyComparison.comparison.recommendations.map(
+                            (rec: string, idx: number) => (
+                              <li key={idx} className="text-sm text-amber-800">
+                                {rec}
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    )}
+
+                  {/* Lab Comparison */}
+                  {historyComparison.comparison.labComparison && (
+                    <div className="p-4 rounded-xl bg-purple-50 border border-purple-200">
+                      <p className="font-bold text-purple-900 mb-2">🔬 Lab Report Comparison:</p>
+                      {historyComparison.comparison.labComparison.cholesterol && (
+                        <div className="text-sm text-purple-800">
+                          <p>
+                            Cholesterol: {historyComparison.comparison.labComparison.cholesterol.previous} mg/dL →{" "}
+                            {historyComparison.comparison.labComparison.cholesterol.current} mg/dL
+                            <span className={`ml-2 font-semibold ${
+                              historyComparison.comparison.labComparison.cholesterol.trend === "increased"
+                                ? "text-red-600"
+                                : historyComparison.comparison.labComparison.cholesterol.trend === "decreased"
+                                ? "text-green-600"
+                                : "text-slate-600"
+                            }`}>
+                              ({historyComparison.comparison.labComparison.cholesterol.trend})
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Full History List */}
+                  {showHistory && historyComparison.allPrevious && historyComparison.allPrevious.length > 0 && (
+                    <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                      <p className="font-bold text-slate-900 mb-3">
+                        📊 Previous Checkups ({historyComparison.comparison.analysis.totalCheckups} total):
+                      </p>
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {historyComparison.allPrevious.map((entry: any, idx: number) => (
+                          <div
+                            key={entry.id}
+                            className="p-3 rounded-lg bg-white border border-slate-200 text-sm"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-slate-900">
+                                {new Date(entry.date).toLocaleDateString()}
+                              </span>
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                  entry.risk === "High"
+                                    ? "bg-red-100 text-red-700"
+                                    : entry.risk === "Medium"
+                                    ? "bg-orange-100 text-orange-700"
+                                    : "bg-green-100 text-green-700"
+                                }`}
+                              >
+                                {entry.risk} Risk
+                              </span>
+                            </div>
+                            {entry.summary && (
+                              <p className="text-xs text-slate-600 mt-1">{entry.summary}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
 
               {/* Assigned Doctor Section */}
               {assigned ? (
@@ -1622,14 +2138,14 @@ export default function Index() {
                   className="space-y-4"
                 >
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                    <p className="text-sm font-semibold text-slate-700 mb-2">Summary</p>
-                    <p className="text-slate-700">{reportDetails.analysis.summary}</p>
+                    <p className="text-sm font-semibold text-slate-700 mb-2">📋 Analysis Summary</p>
+                    <p className="text-slate-700">{reportDetails.analysis.summary || "No summary available"}</p>
                   </div>
 
                   {reportDetails.analysis.riskLevel && (
                     <div className="p-4 rounded-xl bg-white border border-slate-200">
-                      <p className="text-sm text-slate-600">Risk Level</p>
-                      <p className={`text-2xl font-bold mt-1 ${
+                      <p className="text-sm text-slate-600 mb-1">Risk Level</p>
+                      <p className={`text-2xl font-bold ${
                         reportDetails.analysis.riskLevel === "Critical" || reportDetails.analysis.riskLevel === "High"
                           ? "text-red-600"
                           : reportDetails.analysis.riskLevel === "Medium"
@@ -1643,34 +2159,87 @@ export default function Index() {
 
                   {reportDetails.analysis.levels && reportDetails.analysis.levels.length > 0 && (
                     <div>
-                      <p className="text-sm font-semibold text-slate-700 mb-3">Lab Values</p>
-                      <div className="space-y-2">
-                        {reportDetails.analysis.levels.slice(0, 3).map((level, idx) => (
+                      <p className="text-sm font-semibold text-slate-700 mb-3">
+                        🔬 Lab Values ({reportDetails.analysis.levels.length} values found)
+                      </p>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {reportDetails.analysis.levels.map((level, idx) => (
                           <motion.div
                             key={idx}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.1 }}
+                            transition={{ delay: idx * 0.05 }}
                             className="p-3 rounded-lg bg-slate-50 border border-slate-200"
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold text-slate-800">{level.name}</span>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-semibold text-slate-800 text-sm">{level.name}</span>
                               <span className={`text-xs font-bold rounded-full px-2 py-1 ${
-                                level.status === "Critical" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                                level.status === "Critical" 
+                                  ? "bg-red-100 text-red-700"
+                                  : level.status === "High"
+                                  ? "bg-orange-100 text-orange-700"
+                                  : level.status === "Low"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-green-100 text-green-700"
                               }`}>
                                 {level.status}
                               </span>
                             </div>
-                            <p className="text-sm text-slate-600 mt-1">{level.value} {level.unit}</p>
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm text-slate-600">
+                                {level.value} {level.unit || ""}
+                              </p>
+                              {level.referenceRange && (
+                                <p className="text-xs text-slate-500">
+                                  Ref: {level.referenceRange}
+                                </p>
+                              )}
+                            </div>
                           </motion.div>
                         ))}
                       </div>
                     </div>
                   )}
+
+                  {reportDetails.analysis.findings && reportDetails.analysis.findings.length > 0 && (
+                    <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
+                      <p className="text-sm font-semibold text-blue-900 mb-2">🔍 Key Findings</p>
+                      <ul className="space-y-1">
+                        {reportDetails.analysis.findings.map((finding, idx) => (
+                          <li key={idx} className="text-sm text-blue-800">
+                            • {finding}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {reportDetails.analysis.recommendations && reportDetails.analysis.recommendations.length > 0 && (
+                    <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+                      <p className="text-sm font-semibold text-amber-900 mb-2">💡 Recommendations</p>
+                      <ul className="space-y-1">
+                        {reportDetails.analysis.recommendations.map((rec, idx) => (
+                          <li key={idx} className="text-sm text-amber-800">
+                            • {rec}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </motion.div>
+              ) : reportFile && !reportReady ? (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mb-3"></div>
+                  <p className="text-slate-600">Analyzing report...</p>
+                  {statusMessage && (
+                    <p className="text-xs text-slate-500 mt-2">{statusMessage}</p>
+                  )}
+                </div>
               ) : (
                 <div className="text-center text-slate-500 py-8">
+                  <UploadCloud className="h-12 w-12 mx-auto mb-3 text-slate-400" />
                   <p>Upload a report to see AI analysis here</p>
+                  <p className="text-xs text-slate-400 mt-2">Supports PDF and image files</p>
                 </div>
               )}
             </motion.div>
@@ -1695,9 +2264,9 @@ export default function Index() {
           className="mx-auto max-w-5xl"
         >
           <motion.div variants={itemVariants} className="mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Schedule & Share Appointments</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Schedule Appointments</h2>
             <p className="mt-3 text-lg text-slate-600">
-              Assign doctors, view upcoming appointments, and share via QR code with friends.
+              Assign doctors and view upcoming appointments.
             </p>
           </motion.div>
 
@@ -1746,193 +2315,58 @@ export default function Index() {
             </div>
           </motion.div>
 
-          {/* Bottom: Upcoming Appointments + QR Share */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Upcoming Appointments */}
-            <motion.div
-              variants={itemVariants}
-              className="p-8 rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-50 shadow-xl border border-blue-200"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <CalendarClock className="h-8 w-8 text-blue-600" />
-                <h3 className="text-2xl font-bold text-slate-900">📅 Upcoming Appointments</h3>
-              </div>
-              {appointments.length > 0 ? (
-                <motion.div
-                  className="space-y-4"
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  {appointments.map((appt, idx) => (
-                    <motion.div
-                      key={`${appt.id}-${appt.time}-${idx}`}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.1 }}
-                      className="p-5 rounded-xl bg-white border-2 border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <p className="font-bold text-slate-900 text-lg">{appt.patientName}</p>
-                          <p className="text-sm text-slate-600 mt-1 font-medium">
-                            📍 {new Date(appt.time).toLocaleString()}
+          {/* Upcoming Appointments */}
+          <motion.div
+            variants={itemVariants}
+            className="p-8 rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-50 shadow-xl border border-blue-200"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <CalendarClock className="h-8 w-8 text-blue-600" />
+              <h3 className="text-2xl font-bold text-slate-900">📅 Upcoming Appointments</h3>
+            </div>
+            {appointments.length > 0 ? (
+              <motion.div
+                className="space-y-4"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                {appointments.map((appt, idx) => (
+                  <motion.div
+                    key={`${appt.id}-${appt.time}-${idx}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className="p-5 rounded-xl bg-white border-2 border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <p className="font-bold text-slate-900 text-lg">{appt.patientName}</p>
+                        <p className="text-sm text-slate-600 mt-1 font-medium">
+                          📍 {new Date(appt.time).toLocaleString()}
+                        </p>
+                        {/* Find and display doctor name */}
+                        {doctors.find((d) => d.id === appt.doctorId) && (
+                          <p className="text-xs text-blue-600 mt-2">
+                            👨‍⚕️ Dr. {doctors.find((d) => d.id === appt.doctorId)?.name}
                           </p>
-                          {/* Find and display doctor name */}
-                          {doctors.find((d) => d.id === appt.doctorId) && (
-                            <p className="text-xs text-blue-600 mt-2">
-                              👨‍⚕️ Dr. {doctors.find((d) => d.id === appt.doctorId)?.name}
-                            </p>
-                          )}
-                        </div>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => {
-                            playSound("click");
-                            setQrData(
-                              `appointment:${encodeURIComponent(appt.patientName)}:${appt.doctorId}:${appt.id}:${Date.now()}`
-                            );
-                          }}
-                          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-all"
-                          title="Share this appointment via QR code"
-                        >
-                          📤 Share
-                        </motion.button>
+                        )}
                       </div>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center py-12"
-                >
-                  <p className="text-slate-600 text-lg font-medium">📭 No appointments scheduled yet</p>
-                  <p className="text-sm text-slate-500 mt-2">Assign a doctor above to create an appointment</p>
-                </motion.div>
-              )}
-            </motion.div>
-
-            {/* QR Code Share */}
-            <motion.div
-              variants={itemVariants}
-              className="p-8 rounded-3xl bg-gradient-to-br from-purple-50 to-pink-50 shadow-xl border border-purple-200"
-            >
-              <h3 className="text-2xl font-bold text-slate-900 mb-6">🔗 Share with Friends</h3>
-
-              {qrData ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="space-y-4"
-                >
-                  <p className="text-sm text-slate-700 font-medium">
-                    📱 Send this QR code to your friend. They can scan it to see and manage your appointment.
-                  </p>
-
-                  {/* QR Code Display */}
-                  <div className="flex justify-center p-6 bg-white rounded-2xl border-2 border-purple-300 shadow-lg">
-                    <div className="text-center">
-                      <div
-                        className="inline-block p-4 bg-white rounded-xl border-4 border-purple-400"
-                        style={{
-                          fontSize: "0.8em",
-                        }}
-                      >
-                        <svg width="240" height="240" viewBox="0 0 100 100">
-                          {/* Simple QR-like pattern from data */}
-                          {qrData.split("").map((char, i) => (
-                            <rect
-                              key={i}
-                              x={(i % 10) * 10}
-                              y={Math.floor(i / 10) * 10}
-                              width="10"
-                              height="10"
-                              fill={
-                                char.charCodeAt(0) % 2 === 0 ? "#DC2626" : "#ffffff"
-                              }
-                              stroke="none"
-                            />
-                          ))}
-                        </svg>
-                      </div>
-                      <p className="text-xs text-slate-600 mt-3 font-mono">
-                        {qrData.substring(0, 30)}...
-                      </p>
                     </div>
-                  </div>
-
-                  {/* Copy to Clipboard */}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      playSound("success");
-                      navigator.clipboard.writeText(qrData);
-                      alert("✓ QR data copied to clipboard!");
-                    }}
-                    className="w-full px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md transition-all"
-                  >
-                    📋 Copy QR Data
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      playSound("click");
-                      setQrData(null);
-                    }}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-300 hover:bg-slate-400 text-slate-900 font-bold shadow-md transition-all"
-                  >
-                    ✕ Close QR
-                  </motion.button>
-                </motion.div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="space-y-4"
-                >
-                  <p className="text-sm text-slate-700 font-medium">
-                    👉 Click "Share" on any appointment above to generate a QR code.
-                  </p>
-
-                  <div className="p-6 rounded-2xl bg-white/70 border-2 border-purple-300 text-center">
-                    <div className="text-6xl mb-3">🤝</div>
-                    <p className="text-slate-700 font-semibold">Share Appointments Instantly</p>
-                    <p className="text-xs text-slate-600 mt-2">
-                      Your friends can scan the QR code to view and confirm the same appointment
-                    </p>
-                  </div>
-
-                  {/* Paste QR to Access */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-700">
-                      Or Paste Friend's QR Data:
-                    </label>
-                    <textarea
-                      value={qrInput}
-                      onChange={(e) => setQrInput(e.target.value)}
-                      placeholder="Paste QR appointment data here..."
-                      className="w-full p-3 rounded-lg border-2 border-purple-300 focus:border-purple-600 focus:outline-none text-sm font-mono"
-                      rows={3}
-                    />
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleScanOrPaste}
-                      className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold shadow-md transition-all"
-                    >
-                      ✓ Load Friend's Appointment
-                    </motion.button>
-                  </div>
-                </motion.div>
-              )}
-            </motion.div>
-          </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-12"
+              >
+                <p className="text-slate-600 text-lg font-medium">📭 No appointments scheduled yet</p>
+                <p className="text-sm text-slate-500 mt-2">Assign a doctor above to create an appointment</p>
+              </motion.div>
+            )}
+          </motion.div>
         </motion.div>
       </motion.section>
     </div>

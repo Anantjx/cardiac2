@@ -40,23 +40,28 @@ export default function Footer() {
             <p className="font-semibold text-slate-900 text-sm">Quick Links</p>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="#home" className="text-slate-600 hover:text-red-600 transition-colors">
+                <a href="/" className="text-slate-600 hover:text-red-600 transition-colors">
                   Home
                 </a>
               </li>
               <li>
-                <a href="#check-in" className="text-slate-600 hover:text-red-600 transition-colors">
+                <a href="/#check-in" className="text-slate-600 hover:text-red-600 transition-colors">
                   Assessment
                 </a>
               </li>
               <li>
-                <a href="#reports" className="text-slate-600 hover:text-red-600 transition-colors">
+                <a href="/#reports" className="text-slate-600 hover:text-red-600 transition-colors">
                   Lab Reports
                 </a>
               </li>
               <li>
-                <a href="#appointments" className="text-slate-600 hover:text-red-600 transition-colors">
+                <a href="/#appointments" className="text-slate-600 hover:text-red-600 transition-colors">
                   Appointments
+                </a>
+              </li>
+              <li>
+                <a href="/help" className="text-slate-600 hover:text-red-600 transition-colors">
+                  Help & Support
                 </a>
               </li>
             </ul>
@@ -70,21 +75,21 @@ export default function Footer() {
             aria-label="Footer Legal"
             className="space-y-2"
           >
-            <p className="font-semibold text-slate-900 text-sm">Legal</p>
+            <p className="font-semibold text-slate-900 text-sm">Support & Legal</p>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="#privacy" className="text-slate-600 hover:text-red-600 transition-colors">
-                  Privacy Policy
+                <a href="/contact" className="text-slate-600 hover:text-red-600 transition-colors">
+                  Contact Us
                 </a>
               </li>
               <li>
-                <a href="#terms" className="text-slate-600 hover:text-red-600 transition-colors">
-                  Terms of Service
+                <a href="/help" className="text-slate-600 hover:text-red-600 transition-colors">
+                  Help Center
                 </a>
               </li>
               <li>
-                <a href="#contact" className="text-slate-600 hover:text-red-600 transition-colors">
-                  Contact Support
+                <a href="/contact" className="text-slate-600 hover:text-red-600 transition-colors">
+                  Support
                 </a>
               </li>
             </ul>

@@ -5,19 +5,32 @@ import { LabReportAnalysis } from "@shared/api";
 export const handleAnalyzeLabReport: RequestHandler = async (req, res) => {
   const { fileData, fileName, mimeType, patientName } = req.body ?? {};
 
+  console.log("=== Lab Report Analysis Request ===");
+  console.log("File name:", fileName);
+  console.log("MIME type:", mimeType);
+  console.log("Patient name:", patientName);
+  console.log("File data length:", fileData?.length || 0);
+
   if (!fileData) {
-    return res.status(400).json({ error: "Missing file data" });
+    console.error("ERROR: Missing file data");
+    return res.status(400).json({ 
+      error: "Missing file data",
+      details: "No file data provided in request body"
+    });
   }
 
   // Use Gemini API key from .env
   const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
-    console.error("GEMINI_API_KEY not found in environment variables");
-    return res.status(500).json({ error: "Gemini API key not configured" });
+    console.error("ERROR: GEMINI_API_KEY not found in environment variables");
+    return res.status(500).json({ 
+      error: "Gemini API key not configured",
+      details: "Please set GEMINI_API_KEY in your .env file"
+    });
   }
   
-  console.log("Gemini API key found, starting analysis...");
+  console.log("✓ Gemini API key found, starting analysis...");
 
   try {
     // Determine if this is an image or PDF that can use vision API
@@ -115,6 +128,8 @@ Focus on cardiac-related markers like cholesterol, LDL, HDL, triglycerides, bloo
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       
       console.log(`Calling Gemini API with model: ${model}, mimeType: ${mimeType}`);
+      console.log(`Request URL: ${url.replace(apiKey, "***")}`);
+      console.log(`Request body size: ${JSON.stringify(requestBody).length} bytes`);
 
       const response = await fetch(url, {
         method: "POST",
@@ -359,6 +374,14 @@ ${textContent}`;
     if (!analysisResult.findings) {
       analysisResult.findings = [];
     }
+
+    console.log("✓ Sending analysis result to client");
+    console.log("Final analysis:", {
+      summary: analysisResult.summary?.substring(0, 100),
+      levelsCount: analysisResult.levels.length,
+      findingsCount: analysisResult.findings.length,
+      riskLevel: analysisResult.riskLevel
+    });
 
     res.json(analysisResult);
   } catch (error: any) {

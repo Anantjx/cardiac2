@@ -15,6 +15,11 @@ import { handleTriage } from "./routes/triage";
 import { handleCreateReport, handleGetReports } from "./routes/reports";
 import { handleSupportRequest } from "./routes/support";
 import { handleAnalyzeLabReport } from "./routes/analyze-lab-report";
+import {
+  handleCreateHistory,
+  handleGetHistory,
+  handleGetHistoryComparison,
+} from "./routes/patient-history";
 
 export function createServer() {
   const app = express();
@@ -51,6 +56,11 @@ export function createServer() {
 
   // Support
   app.post("/api/support", handleSupportRequest);
+
+  // Patient History
+  app.post("/api/patient-history", handleCreateHistory);
+  app.get("/api/patient-history", handleGetHistory);
+  app.post("/api/patient-history/compare", handleGetHistoryComparison);
 
   return app;
 }

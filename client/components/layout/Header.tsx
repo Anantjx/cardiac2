@@ -4,12 +4,12 @@ import { motion } from "framer-motion";
 import { playSound } from "@/lib/sound-effects";
 
 const nav = [
-  { href: "#home", label: "Home" },
-  { href: "#check-in", label: "Check-In" },
-  { href: "#reports", label: "Reports" },
-  { href: "#appointments", label: "Appointments" },
-  { href: "#help", label: "Help" },
-  { href: "#contact", label: "Contact" },
+  { href: "/", label: "Home" },
+  { href: "/#check-in", label: "Check-In" },
+  { href: "/#reports", label: "Reports" },
+  { href: "/#appointments", label: "Appointments" },
+  { href: "/help", label: "Help" },
+  { href: "/contact", label: "Contact" },
 ];
 
 export default function Header() {
@@ -24,7 +24,7 @@ export default function Header() {
     >
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
         <motion.a
-          href="#home"
+          href="/"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => playSound("click")}
@@ -58,14 +58,14 @@ export default function Header() {
           ))}
         </nav>
 
-        <div className="md:hidden">
+        <div className="md:hidden flex items-center gap-2">
           <motion.button
             type="button"
             aria-expanded={open}
             aria-controls="mobile-nav"
             onClick={() => {
               setOpen((v) => !v);
-              playClickSound();
+              playSound("click");
             }}
             whileHover={{ backgroundColor: "rgb(241, 245, 249)" }}
             whileTap={{ scale: 0.95 }}
