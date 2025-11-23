@@ -628,6 +628,12 @@ export default function Index() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "Unknown error");
+        throw new Error(`Triage API failed: ${res.status} ${res.statusText}. ${errorText}`);
+      }
+
       const data = await res.json();
       setTriage({ risk: data.risk || "Low", summary: data.summary || "" });
 
@@ -648,9 +654,14 @@ export default function Index() {
             patientName: patientName || "Anonymous",
           }),
         });
-        const assignData = await assignRes.json();
-        setAssigned(assignData);
-        playSound("success");
+
+        if (assignRes.ok) {
+          const assignData = await assignRes.json();
+          setAssigned(assignData);
+          playSound("success");
+        } else {
+          console.warn("Doctor assignment failed:", assignRes.status, assignRes.statusText);
+        }
       } catch (err) {
         console.error("Auto-assignment failed:", err);
       }
@@ -679,17 +690,26 @@ export default function Index() {
       await new Promise((r) => setTimeout(r, 700));
 
       if (patientName) {
-        await fetch("/api/patients", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: patientName }),
-        });
-        const p = await fetch("/api/patients");
-        setPatients(await p.json());
+        try {
+          const patientRes = await fetch("/api/patients", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: patientName }),
+          });
+          
+          if (patientRes.ok) {
+            const p = await fetch("/api/patients");
+            if (p.ok) {
+              setPatients(await p.json());
+            }
+          }
+        } catch (err) {
+          console.error("Failed to save patient:", err);
+        }
 
           // Save to patient history
           try {
-            await fetch("/api/patient-history", {
+            const historyRes = await fetch("/api/patient-history", {
               method: "POST",
               headers: { 
                 "Content-Type": "application/json",
@@ -712,39 +732,56 @@ export default function Index() {
               }),
             });
 
-          // Get comparison with previous checkups
-          const compareRes = await fetch("/api/patient-history/compare", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              patientName,
-              currentRisk: data.risk || "Low",
-              currentSymptoms: {
-                ...answers,
-                labReport: reportDetails,
-              },
-            }),
-          });
-          const comparison = await compareRes.json();
-          setHistoryComparison(comparison);
+            if (historyRes.ok) {
+              // Get comparison with previous checkups
+              try {
+                const compareRes = await fetch("/api/patient-history/compare", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    patientName,
+                    currentRisk: data.risk || "Low",
+                    currentSymptoms: {
+                      ...answers,
+                      labReport: reportDetails,
+                    },
+                  }),
+                });
 
-          // Fetch full history
-          const histRes = await fetch(
-            `/api/patient-history?patient=${encodeURIComponent(patientName)}`
-          );
-          const history = await histRes.json();
-          setPatientHistory(history);
+                if (compareRes.ok) {
+                  const comparison = await compareRes.json();
+                  setHistoryComparison(comparison);
+                }
+              } catch (err) {
+                console.warn("Failed to get history comparison:", err);
+              }
+
+              // Fetch full history
+              try {
+                const histRes = await fetch(
+                  `/api/patient-history?patient=${encodeURIComponent(patientName)}`
+                );
+                if (histRes.ok) {
+                  const history = await histRes.json();
+                  setPatientHistory(history);
+                }
+              } catch (err) {
+                console.warn("Failed to fetch history:", err);
+              }
+            }
         } catch (err) {
           console.error("Failed to save history:", err);
         }
       }
 
       setStatusMessage("Results ready");
-    } catch (err) {
-      console.error(err);
+      setStatusStage(0);
+    } catch (err: any) {
+      console.error("Assessment error:", err);
       playSound("error");
-      alert("Triage failed");
-      setStatusMessage(null);
+      const errorMessage = err?.message || "Assessment failed. Please try again.";
+      alert(`Assessment Error: ${errorMessage}\n\nPlease check:\n1. Your internet connection\n2. Try refreshing the page\n3. Contact support if the issue persists`);
+      setStatusMessage(`Error: ${errorMessage}`);
       setStatusStage(0);
     } finally {
       setLoading(false);
