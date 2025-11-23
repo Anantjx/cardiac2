@@ -24,4 +24,10 @@ dist-ssr
 *.sw?
 
 .config/
-!.env
+.env
+.env.local
+.env.*.local
+
+# Firebase (if re-added later)
+firebase-debug.log
+firestore-debug.log
